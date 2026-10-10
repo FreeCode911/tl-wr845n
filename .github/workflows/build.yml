@@ -1,1 +1,74 @@
+name: Build TL-WR845N v4 Smart Firmware
 
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - '*'
+
+env:
+  SRC_REPO: https://github.com/lucktu/padavan_TW641.git
+  SRC_COMMIT: 90f694db3b47f2dc9c2f072f1db17bf2b1d8102a
+  TOOLCHAIN_URL: https://gitlab.com/api/v4/projects/hadzhioglu%2Fpadavan-ng/packages/generic/toolchain/latest/toolchain.tzst
+  PRODUCT_ID: TL_WR845N-V4
+  TEMPLATE: tplink/tl_wr845n-v4.config
+  MAX_FW_SIZE: 3932160   # 0x3C0000, the Firmware partition on this 4 MB board
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: registry.gitlab.com/hadzhioglu/padavan-ng
+    defaults: { run: { shell: bash } }
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get source (pinned commit)
+        run: |
+          git config --global --add safe.directory '*'
+          git clone "$SRC_REPO" src
+          git -C src checkout "$SRC_COMMIT"
+
+      - name: Get toolchain
+        run: wget -qO- "$TOOLCHAIN_URL" | tar -C src --zstd -xf -
+
+      - name: Apply Smart WAN Watchdog patch
+        run: |
+          cd src
+          for p in ../patches/*.patch; do
+            echo "Applying $p"
+            git apply --whitespace=nowarn "$p"
+          done
+          chmod +x trunk/user/scripts/wan_watchdog.sh
+
+      - name: Configure (English only, keep image small)
+        run: |
+          cp "src/trunk/configs/templates/$TEMPLATE" src/trunk/.config
+          sed -i 's/^CONFIG_FIRMWARE_INCLUDE_LANG_RU=y/#CONFIG_FIRMWARE_INCLUDE_LANG_RU=y/' src/trunk/.config
+          grep -E "PRODUCT_ID|LANG_" src/trunk/.config
+
+      - name: Build firmware
+        run: |
+          cd src/trunk
+          ./clear_tree.sh
+          ./build_firmware.sh
+          FW="$(find images -type f -iname '*.bin' -printf '%T@\t%p\n' | sort -n | tail -1 | cut -f2)"
+          [ -n "$FW" ] || { echo "Firmware file not found"; exit 1; }
+          cp "$FW" "$GITHUB_WORKSPACE/WR845Nv4_smart_watchdog.bin"
+
+      - name: Check size
+        run: |
+          size=$(stat -c %s WR845Nv4_smart_watchdog.bin)
+          echo "Firmware size: $size bytes (max $MAX_FW_SIZE)"
+          if [ "$size" -gt "$MAX_FW_SIZE" ]; then
+            echo "Firmware is too big for the 4 MB flash"; exit 1
+          fi
+          sha256sum WR845Nv4_smart_watchdog.bin > SHA256SUMS.txt
+
+      - name: Upload firmware
+        uses: actions/upload-artifact@v4
+        with:
+          name: WR845Nv4-smart-firmware
+          retention-days: 30
+          path: |
+            WR845Nv4_smart_watchdog.bin
+            SHA256SUMS.txt
