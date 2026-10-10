@@ -1,1 +1,221 @@
-
+diff --git a/trunk/user/rc/rc.c b/trunk/user/rc/rc.c
+index e625a8d3e..a36988076 100644
+--- a/trunk/user/rc/rc.c
++++ b/trunk/user/rc/rc.c
+@@ -919,6 +919,7 @@ init_router(void)
+ 	// system ready
+ 	system("/etc/storage/started_script.sh &");
+ 	system("/usr/bin/autostart.sh &");
++	system("/usr/bin/wan_watchdog.sh &");
+ }
+ 
+ /*
+diff --git a/trunk/user/scripts/Makefile b/trunk/user/scripts/Makefile
+index 61c347da7..e17509d36 100755
+--- a/trunk/user/scripts/Makefile
++++ b/trunk/user/scripts/Makefile
+@@ -9,6 +9,7 @@ romfs:
+ 	$(ROMFSINST) /sbin/dev_init.sh
+ 	$(ROMFSINST) /sbin/reset_ss.sh
+ 	$(ROMFSINST) /sbin/mtd_storage.sh
++	$(ROMFSINST) -p +x $(THISDIR)/wan_watchdog.sh /usr/bin/wan_watchdog.sh
+ #	$(ROMFSINST) -p +x $(THISDIR)/autostart.sh /usr/bin/autostart.sh
+ ifeq ($(STORAGE_ENABLED),y)
+ 	$(ROMFSINST) /sbin/automount.sh
+diff --git a/trunk/user/scripts/wan_watchdog.sh b/trunk/user/scripts/wan_watchdog.sh
+new file mode 100755
+index 000000000..3429e4ab0
+--- /dev/null
++++ b/trunk/user/scripts/wan_watchdog.sh
+@@ -0,0 +1,157 @@
++#!/bin/sh
++#
++# Smart WAN Watchdog for Padavan (built for TP-Link TL-WR845N v4)
++#
++# When the internet stays down it escalates step by step:
++#   1. waits  wd_fail_time  seconds (short blips are ignored)
++#   2. restarts the WAN connection (PPPoE/DHCP) up to  wd_wan_retries  times,
++#      waiting  wd_wan_wait  seconds after each try
++#   3. reboots the router
++# If reboots keep not helping (ISP outage), each further reboot waits longer
++# (wd_backoff_base, doubled each time, capped at wd_backoff_max), so the router
++# never gets stuck in a reboot loop. The counter resets once the internet has
++# been stable for wd_stable_time seconds.
++#
++# All settings are nvram keys (Administration -> Console, or SSH):
++#   nvram set wd_fail_time=300 && nvram commit
++# Logs go to the system log with tag "wan_watchdog".
++
++TAG="wan_watchdog"
++PIDFILE="/var/run/wan_watchdog.pid"
++POLL=10
++
++if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
++	exit 0
++fi
++echo $$ > "$PIDFILE"
++
++nv() {
++	v="$(nvram get "$1" 2>/dev/null)"
++	case "$v" in
++		''|*[!0-9]*) echo "$2" ;;
++		*) echo "$v" ;;
++	esac
++}
++
++log() { logger -t "$TAG" "$*"; }
++
++uptime_s() { cut -d. -f1 /proc/uptime; }
++
++# 1 = internet OK, 0 = lost, 2 = unknown (still checking)
++check_internet() {
++	if [ "$(nvram get di_poll_mode)" = "1" ]; then
++		case "$(nvram get link_internet)" in
++			1) echo 1 ;;
++			0) echo 0 ;;
++			*) echo 2 ;;
++		esac
++		return
++	fi
++	# Fallback if built-in Internet detection was turned off
++	for ip in 1.1.1.1 8.8.8.8 9.9.9.9; do
++		if ping -c 1 -W 3 "$ip" >/dev/null 2>&1; then
++			echo 1
++			return
++		fi
++	done
++	echo 0
++}
++
++backoff_for() {
++	# extra wait before reboot number $1+1 when $1 reboots already happened in a row
++	n="$1"
++	[ "$n" -le 0 ] && { echo 0; return; }
++	b="$(nv wd_backoff_base 300)"
++	m="$(nv wd_backoff_max 1800)"
++	i=1
++	while [ "$i" -lt "$n" ] && [ "$i" -lt 12 ]; do
++		b=$((b * 2))
++		i=$((i + 1))
++	done
++	[ "$b" -gt "$m" ] && b="$m"
++	echo "$b"
++}
++
++lost_since=0
++ok_since=0
++wan_tries=0
++last_wan_restart=0
++warned_mode=0
++
++sleep "$(nv wd_boot_grace 120)"
++log "started (reboots in a row so far: $(nv wd_reboots 0))"
++
++while :; do
++	sleep "$POLL"
++
++	if [ "$(nv wd_enable 1)" != "1" ]; then
++		lost_since=0; wan_tries=0; last_wan_restart=0
++		continue
++	fi
++
++	# only in router mode
++	if [ "$(nvram get sw_mode)" != "1" ]; then
++		[ "$warned_mode" = 0 ] && log "not in router mode, watchdog idle"
++		warned_mode=1
++		continue
++	fi
++
++	now="$(uptime_s)"
++	st="$(check_internet)"
++
++	if [ "$st" = "1" ]; then
++		if [ "$lost_since" -ne 0 ]; then
++			log "internet restored after $((now - lost_since))s"
++		fi
++		lost_since=0; wan_tries=0; last_wan_restart=0
++		[ "$ok_since" -eq 0 ] && ok_since="$now"
++		if [ "$(nv wd_reboots 0)" -ne 0 ] && [ $((now - ok_since)) -ge "$(nv wd_stable_time 600)" ]; then
++			nvram set wd_reboots=0
++			nvram commit
++			log "connection stable, reboot backoff reset"
++		fi
++		continue
++	fi
++
++	[ "$st" = "2" ] && continue
++
++	ok_since=0
++	if [ "$lost_since" -eq 0 ]; then
++		lost_since="$now"
++		log "internet lost"
++	fi
++	down=$((now - lost_since))
++
++	fail_time="$(nv wd_fail_time 180)"
++	max_wan="$(nv wd_wan_retries 2)"
++	wan_wait="$(nv wd_wan_wait 90)"
++
++	[ "$down" -lt "$fail_time" ] && continue
++
++	# Step 2: restart WAN
++	if [ "$wan_tries" -lt "$max_wan" ]; then
++		if [ "$last_wan_restart" -eq 0 ] || [ $((now - last_wan_restart)) -ge "$wan_wait" ]; then
++			wan_tries=$((wan_tries + 1))
++			last_wan_restart="$now"
++			log "internet down ${down}s: restarting WAN (try $wan_tries/$max_wan)"
++			restart_wan
++		fi
++		continue
++	fi
++	[ "$last_wan_restart" -ne 0 ] && [ $((now - last_wan_restart)) -lt "$wan_wait" ] && continue
++
++	# Step 3: reboot, with backoff if previous reboots did not help
++	reboots="$(nv wd_reboots 0)"
++	extra="$(backoff_for "$reboots")"
++	need=$((fail_time + max_wan * wan_wait + extra))
++	if [ "$down" -ge "$need" ]; then
++		reboots=$((reboots + 1))
++		nvram set wd_reboots="$reboots"
++		nvram commit
++		log "internet down ${down}s, WAN restart did not help: rebooting (reboot #$reboots in a row)"
++		sync
++		sleep 2
++		reboot
++		exit 0
++	fi
++done
+diff --git a/trunk/user/shared/defaults.c b/trunk/user/shared/defaults.c
+index 245d70b10..206c6998e 100644
+--- a/trunk/user/shared/defaults.c
++++ b/trunk/user/shared/defaults.c
+@@ -589,7 +589,19 @@ struct nvram_pair router_defaults[] = {
+ 	{ "controlrate_multicast", "0" },
+ 	{ "controlrate_broadcast", "10" },
+ 
+-	{ "di_poll_mode", "0" },
++	{ "di_poll_mode", "1" },
++
++	/* Smart WAN Watchdog (/usr/bin/wan_watchdog.sh) */
++	{ "wd_enable", "1" },
++	{ "wd_fail_time", "180" },
++	{ "wd_wan_retries", "2" },
++	{ "wd_wan_wait", "90" },
++	{ "wd_backoff_base", "300" },
++	{ "wd_backoff_max", "1800" },
++	{ "wd_stable_time", "600" },
++	{ "wd_boot_grace", "120" },
++	{ "wd_reboots", "0" },
++
+ 	{ "di_timeout", "3" },
+ 	{ "di_time_done", "55" },
+ 	{ "di_time_fail", "5" },
+@@ -696,7 +708,7 @@ struct nvram_pair router_defaults[] = {
+ 	{ "fn2_action_short", "0" },
+ 	{ "fn2_action_long", "0" },
+ #endif
+-	{ "watchdog_cpu", "0" },
++	{ "watchdog_cpu", "1" },
+ 	{ "front_led_all", "1" },
+ 	{ "front_led_wan", "2" },
+ #if defined (BOARD_GPIO_LED_WAN) && defined (BOARD_GPIO_LED_WAN_PHY)
