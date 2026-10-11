@@ -1,0 +1,1 @@
+Removed to fit 4 MB flash: no Software Offload (SFE), no SSH server (web Console still works)
