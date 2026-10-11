@@ -1,88 +1,119 @@
-# TL-WR845N v4 Smart Firmware
+# Iqbal Mahmud Smart Router Firmware: TL-WR845N v4
 
-Custom Padavan firmware for the **TP-Link TL-WR845N v4** (MT7628NN, 4 MB flash, 32 MB RAM) with a built-in **Smart WAN Watchdog**: when the internet goes down, the router fixes itself instead of waiting for someone to pull the power cable.
+Custom Padavan firmware for the **TP-Link TL-WR845N v4** (MT7628NN, 4 MB flash, 32 MB RAM), by **[Iqbal Mahmud](https://iqbalmahmud.com)**.
 
-Based on [lucktu/padavan_TW641](https://github.com/lucktu/padavan_TW641) (padavan-ng, Linux 3.4), pinned to commit `90f694d`.
+- **Smart WAN Watchdog**: the router fixes its own internet drops.
+- **Speed Control**: chosen devices get full speed, everyone else gets the limit you set.
+- **Iqbal Mahmud branding**: logo, page title, footer, SSH banner, default Wi-Fi name.
 
-## What it does
+Based on [lucktu/padavan_TW641](https://github.com/lucktu/padavan_TW641) (padavan-ng, Linux 3.4), pinned to commit `90f694d`. GPL v2.
 
-When the internet stops working, the watchdog escalates step by step:
+## Version 2 changes
+
+| | v1 | v2 |
+|---|---|---|
+| Smart WAN Watchdog | ✅ | ✅ |
+| Hardware CPU watchdog | ✅ | ✅ |
+| Speed Control (VIP / per-device / shared pool) | ❌ | ✅ |
+| Traffic control (`tc`, HTB) | ❌ | ✅ |
+| IPSet | ✅ | ❌ removed to make room |
+| Branding | Padavan | Iqbal Mahmud |
+| Default Wi-Fi name | `TL_WR845N-V4_%s` (bug) | `IqbalMahmud_WiFi` |
+
+Upgrading from v1 keeps your settings (Wi-Fi, PPPoE, password). Take a **Settings Backup** first anyway.
+
+## Smart WAN Watchdog
 
 | Step | When | Action |
 |---|---|---|
 | 1 | Internet down < 3 min | Nothing. Short blips are ignored. |
-| 2 | Down 3 min | Restart the WAN connection (PPPoE/DHCP). Up to 2 tries, 90 s apart. |
-| 3 | Still down after WAN restarts | Reboot the router. |
-| 4 | Still down after a reboot | Next reboot waits longer: +5, +10, +20, then +30 min max. No reboot loop during an ISP outage. |
-| — | Internet stable for 10 min | Backoff counter resets. |
+| 2 | Down 3 min | Restart the WAN connection, up to 2 tries 90 s apart. |
+| 3 | Still down | Reboot the router. |
+| 4 | Still down after a reboot | Each next reboot waits longer (+5, +10, +20, max +30 min). |
+| — | Stable 10 min | Backoff resets. |
 
-Two more protections are switched on by default:
+Settings are nvram keys, e.g. `nvram set wd_fail_time=300 && nvram commit`:
+`wd_enable`, `wd_fail_time`, `wd_wan_retries`, `wd_wan_wait`, `wd_backoff_base`, `wd_backoff_max`, `wd_stable_time`, `wd_boot_grace`.
 
-- **Hardware CPU watchdog** (`watchdog_cpu=1`): if the router itself freezes, the MT7628 chip reboots it automatically. A script alone can't recover from a freeze; this can.
-- **Built-in Internet detection** (`di_poll_mode=1`): checks 1.1.1.1, 8.8.8.8, 9.9.9.9 and others on TCP port 53, which works even where ping is blocked.
+## Speed Control
 
-Every action is written to the system log (tag `wan_watchdog`), visible in the web UI under **Administration → System Log**.
+Three kinds of device:
 
-## Settings
+- **VIP**: full speed, and **priority**. When a VIP device needs bandwidth it gets up to 90 % of your line first.
+- **Custom**: a device with its own download/upload limit.
+- **Others**: everyone else. Two modes:
+  - `each`: every device gets its own limit (e.g. 5 Mbps each, however many connect).
+  - `pool`: all of them **share** one limit (e.g. 10 Mbps together).
 
-Change them in **Administration → Console** (or over SSH), then they persist across reboots:
+Devices are matched by **MAC address**, so rules keep working when IPs change. New devices are picked up within about 15 s.
+
+### Commands
+
+Run them in **Administration → Console** (or SSH). Speeds are in **Mbps** (`5`, `1.5`) or kbps with `k` (`512k`). `0` = unlimited.
 
 ```sh
-nvram set wd_fail_time=300 && nvram commit
+speedctl list                          # connected devices, MAC, name, current rule
+speedctl line 30 30                    # your real ISP plan: down / up  (do this first)
+speedctl others each 5 1               # every other device: 5 Mbps down / 1 Mbps up each
+speedctl others pool 10 2              # ...or all others share 10 down / 2 up
+speedctl vip add aa:bb:cc:dd:ee:ff     # full speed + priority
+speedctl vip del aa:bb:cc:dd:ee:ff
+speedctl limit aa:bb:cc:dd:ee:ff 2 0.5 # custom: 2 Mbps down / 500 kbps up
+speedctl unlimit aa:bb:cc:dd:ee:ff
+speedctl on                            # enable
+speedctl off                           # disable (everything back to normal)
+speedctl status                        # show settings
 ```
 
-| Key | Default | Meaning |
-|---|---|---|
-| `wd_enable` | `1` | `0` turns the watchdog off |
-| `wd_fail_time` | `180` | Seconds down before acting |
-| `wd_wan_retries` | `2` | WAN restarts before rebooting |
-| `wd_wan_wait` | `90` | Seconds to wait after each WAN restart |
-| `wd_backoff_base` | `300` | Extra wait after the first unhelpful reboot (doubles each time) |
-| `wd_backoff_max` | `1800` | Cap on that extra wait |
-| `wd_stable_time` | `600` | Seconds of good internet before the backoff resets |
-| `wd_boot_grace` | `120` | Seconds after boot before the watchdog starts checking |
-| `wd_reboots` | `0` | Counter the watchdog keeps itself; don't change |
+Rules are saved and survive reboots. Changes apply immediately.
 
-Leave **Internet detection → "Action on lost"** set to *No action*, otherwise the built-in action and the watchdog will both react.
+### First-time setup example
 
-## Build (GitHub Actions, free)
+```sh
+speedctl list                              # find your laptop/phone MAC
+speedctl line 30 30                        # plan speed
+speedctl vip add 11:22:33:44:55:66         # your device
+speedctl others each 5 1                   # everyone else
+speedctl on
+```
 
-1. Create a new GitHub repository and upload everything in this folder, keeping the `.github/workflows` and `patches` folders.
-2. Open the **Actions** tab → **Build TL-WR845N v4 Smart Firmware** → **Run workflow**.
-3. After about 30–60 min, download the **WR845Nv4-smart-firmware** artifact. It contains `WR845Nv4_smart_watchdog.bin` and its SHA256 checksum.
+### Notes
+
+- Set `speedctl line` to your **real** plan speed. Too high and VIP priority gets weaker; too low and everyone is capped below what you pay for.
+- `speedctl on` switches off Software Offload (SFE), which would otherwise skip the limits. If it says so, reboot once.
+- Traffic between devices on your own network (e.g. file copy laptop → PC) is never limited, only internet traffic.
+- Activity is logged under **Administration → System Log** with the tag `speedctl`.
+
+## Build (GitHub Actions)
+
+1. Put this folder in a GitHub repository, keeping `.github/workflows` and `patches`.
+2. **Actions → Build Iqbal Mahmud Smart Firmware → Run workflow**.
+3. After 30–60 min download the **IqbalMahmud-WR845Nv4-v2** artifact: `IqbalMahmud_WR845Nv4_v2.bin` + `SHA256SUMS.txt`.
 
 The build fails on purpose if the image is larger than the 3.84 MB firmware partition.
 
-## Before flashing: read this
-
-- **This can brick the router.** Third-party firmware voids the warranty and isn't supported by TP-Link.
-- **Get a recovery path first.** A CH341A USB programmer with an SOIC-8 clip (about ৳600–900) lets you read a full backup of the 4 MB flash chip (GigaDevice 25Q32 / Winbond W25Q32) and write it back if anything goes wrong. Save that backup somewhere safe before doing anything else.
-- **Use a cable**, never Wi-Fi, and don't power off the router during flashing. A mini UPS helps.
-
 ## Flash
 
-**Option A: stock web interface** (try first)
+**From Padavan (v1 → v2):** **Administration → Firmware Upgrade**, choose the `.bin`, wait for the reboot. Use a cable, don't power off.
 
-1. Connect a PC to a LAN port by cable.
-2. Open `192.168.0.1` → **System Tools → Firmware Upgrade**, choose `WR845Nv4_smart_watchdog.bin`, upgrade.
-3. Newer stock firmware may reject third-party images. If it does, use Option B. Don't try to force it.
+**From TP-Link stock:** System Tools → Firmware Upgrade on `192.168.0.1`. If the stock firmware rejects it, use a CH341A programmer. Always keep a full 4 MB flash backup.
 
-**Option B: CH341A programmer**
+## Defaults (fresh install or after reset)
 
-Write the image at the firmware partition offset with the programmer software, keeping the bootloader (first 64 KB) and the last three 64 KB blocks (Storage, Config, Factory/radio calibration) from your own backup. The Factory block is unique to your router; never overwrite it with someone else's.
+- Web UI: `http://192.168.0.1`, user `admin`, password `admin`
+- Wi-Fi: `IqbalMahmud_WiFi`, password `1234567890`
 
-## After flashing
+**Change both immediately.**
 
-- Web UI: `http://192.168.1.1` (note the new IP), user `admin`, password `admin`. **Change the password immediately.**
-- Set your WAN (PPPoE username/password from your ISP), Wi-Fi name and password.
-- Check the watchdog is running: **Administration → Console** → `ps | grep wan_watchdog`.
-- Test it: unplug the WAN cable for 5 minutes and watch **System Log**.
+## Disclaimer
+
+Use at your own risk. No warranty. Third-party firmware voids the TP-Link warranty and a failed flash can brick the router. For **TL-WR845N v4 only**; do not flash other models or versions.
+
+The upstream footer notice ("Firmware distribution is prohibited / Non-Commercial Use Only") from the Padavan fork authors is kept unchanged in the web UI. Respect it when sharing builds.
 
 ## Files
 
 ```
-.github/workflows/build.yml          Build pipeline
-patches/0001-smart-wan-watchdog.patch  Changes to the Padavan source
+.github/workflows/build.yml                   Build pipeline
+patches/0001-iqbal-mahmud-smart-firmware.patch All changes to the Padavan source
 ```
-
-The patch adds `/usr/bin/wan_watchdog.sh`, starts it at boot from `rc.c`, and changes the defaults in `defaults.c`.

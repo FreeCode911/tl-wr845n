@@ -1,0 +1,697 @@
+diff --git a/trunk/user/rc/rc.c b/trunk/user/rc/rc.c
+index e625a8d3e..e81822937 100644
+--- a/trunk/user/rc/rc.c
++++ b/trunk/user/rc/rc.c
+@@ -919,6 +919,8 @@ init_router(void)
+ 	// system ready
+ 	system("/etc/storage/started_script.sh &");
+ 	system("/usr/bin/autostart.sh &");
++	system("/usr/bin/wan_watchdog.sh &");
++	system("/usr/bin/speedctl daemon &");
+ }
+ 
+ /*
+diff --git a/trunk/user/scripts/Makefile b/trunk/user/scripts/Makefile
+index 61c347da7..8b87e9ac7 100755
+--- a/trunk/user/scripts/Makefile
++++ b/trunk/user/scripts/Makefile
+@@ -9,6 +9,8 @@ romfs:
+ 	$(ROMFSINST) /sbin/dev_init.sh
+ 	$(ROMFSINST) /sbin/reset_ss.sh
+ 	$(ROMFSINST) /sbin/mtd_storage.sh
++	$(ROMFSINST) -p +x $(THISDIR)/wan_watchdog.sh /usr/bin/wan_watchdog.sh
++	$(ROMFSINST) -p +x $(THISDIR)/speedctl.sh /usr/bin/speedctl
+ #	$(ROMFSINST) -p +x $(THISDIR)/autostart.sh /usr/bin/autostart.sh
+ ifeq ($(STORAGE_ENABLED),y)
+ 	$(ROMFSINST) /sbin/automount.sh
+diff --git a/trunk/user/scripts/banner b/trunk/user/scripts/banner
+index 985645ada..1e036a0c7 100755
+--- a/trunk/user/scripts/banner
++++ b/trunk/user/scripts/banner
+@@ -1,6 +1,10 @@
+-    ____            __                      
+-   / __ \____ _____/ /___ __   ______ _____ 
+-  / /_/ / __ `/ __  / __ `/ | / / __ `/ __ \
+- / ____/ /_/ / /_/ / /_/ /| |/ / /_/ / / / /
+-/_/    \__,_/\__,_/\__,_/ |___/\__,_/_/ /_/ 
+-                                            
++    ____      __          __   __  ___      __                        __
++   /  _/___ _/ /_  ____ _/ /  /  |/  /___ _/ /_  ____ ___  __  ______/ /
++   / // __ `/ __ \/ __ `/ /  / /|_/ / __ `/ __ \/ __ `__ \/ / / / __  / 
++ _/ // /_/ / /_/ / /_/ / /  / /  / / /_/ / / / / / / / / / /_/ / /_/ /  
++/___/\__, /_.___/\__,_/_/  /_/  /_/\__,_/_/ /_/_/ /_/ /_/\__,_/\__,_/   
++       /_/                                                              
++
++  Smart Router Firmware by Iqbal Mahmud - iqbalmahmud.com
++  Based on Padavan (padavan-ng / lucktu) - GPL v2
++
+diff --git a/trunk/user/scripts/speedctl.sh b/trunk/user/scripts/speedctl.sh
+new file mode 100755
+index 000000000..4dc557436
+--- /dev/null
++++ b/trunk/user/scripts/speedctl.sh
+@@ -0,0 +1,334 @@
++#!/bin/sh
++#
++# Speed Control for Padavan - by Iqbal Mahmud (iqbalmahmud.com)
++#
++# VIP devices      : full speed, and priority over everyone else
++# Custom devices   : their own download/upload limit
++# Everyone else    : "each" = every device gets its own limit
++#                    "pool" = all of them share one limit
++#
++# Devices are identified by MAC address, so rules survive IP changes.
++# Speeds are in Mbps ("5", "1.5") or kbps with a k ("512k"). 0 = unlimited.
++#
++# Usage (Administration -> Console, or SSH):
++#   speedctl list                      show connected devices and their rule
++#   speedctl status                    show settings and live classes
++#   speedctl on | off                  enable / disable Speed Control
++#   speedctl line DOWN UP              your real internet plan speed
++#   speedctl others each|pool DOWN UP  rule for everyone not listed
++#   speedctl vip add|del MAC           full-speed devices
++#   speedctl limit MAC DOWN UP         custom limit for one device
++#   speedctl unlimit MAC               remove a custom limit
++#   speedctl apply                     re-apply now
++#
++
++LAN=br0
++TAG=speedctl
++STATE=/tmp/speedctl
++PIDFILE=/var/run/speedctl.pid
++POLL=15
++MAXDEV=200
++
++log() { logger -t "$TAG" "$*"; }
++nvq() { nvram get "$1" 2>/dev/null; }
++nvd() { v="$(nvq "$1")"; [ -n "$v" ] && echo "$v" || echo "$2"; }
++
++# "5" "5m" "1.5" -> Mbps, "512k" -> kbps. Prints kbit, or nothing if invalid.
++to_kbit() {
++	echo "$1" | awk '{
++		v=tolower($0); m=1000
++		if (v ~ /k(bps|bit)?$/) { m=1; sub(/k(bps|bit)?$/,"",v) }
++		else sub(/m(bps|bit)?$/,"",v)
++		if (v !~ /^[0-9]+(\.[0-9]+)?$/) exit
++		printf "%d\n", v*m + 0.5
++	}'
++}
++
++fmt() {
++	[ -z "$1" ] || [ "$1" -eq 0 ] && { echo "unlimited"; return; }
++	if [ "$1" -ge 1000 ]; then
++		awk -v k="$1" 'BEGIN{ s=sprintf("%.1f",k/1000); sub(/\.0$/,"",s); print s " Mbps" }'
++	else
++		echo "$1 kbps"
++	fi
++}
++
++norm_mac() {
++	m="$(echo "$1" | tr 'A-F-' 'a-f:')"
++	echo "$m" | grep -qE '^([0-9a-f]{2}:){5}[0-9a-f]{2}$' && echo "$m"
++}
++
++wan_dev() { ip route show default 2>/dev/null | awk '{for(i=1;i<NF;i++) if($i=="dev"){print $(i+1); exit}}'; }
++
++lan_mac() { cat /sys/class/net/$LAN/address 2>/dev/null; }
++
++# u32 matches for destination (at -14) and source (at -8) MAC on an ethernet device
++mac_dst_match() { echo "$1" | awk -F: '{printf "match u16 0x%s%s 0xffff at -14 match u32 0x%s%s%s%s 0xffffffff at -12", $1,$2,$3,$4,$5,$6}'; }
++mac_src_match() { echo "$1" | awk -F: '{printf "match u32 0x%s%s%s%s 0xffffffff at -8 match u16 0x%s%s 0xffff at -4", $1,$2,$3,$4,$5,$6}'; }
++
++in_list() { for x in $2; do [ "$x" = "$1" ] && return 0; done; return 1; }
++
++custom_get() {	# MAC -> "down up" kbit, or nothing
++	for e in $(nvq sc_custom); do
++		[ "${e%%,*}" = "$1" ] && { echo "$e" | awk -F, '{print $2, $3}'; return; }
++	done
++}
++
++connected_macs() {
++	ip neigh show dev $LAN 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="lladdr") print tolower($(i+1))}' | sort -u
++}
++
++dev_name() {
++	n="$(awk -v m="$1" 'tolower($2)==m {print $4; exit}' /tmp/dnsmasq.leases 2>/dev/null)"
++	[ -z "$n" ] || [ "$n" = "*" ] && n="-"
++	echo "$n"
++}
++
++dev_ip() { ip -4 neigh show dev $LAN 2>/dev/null | awk -v m="$1" 'tolower($3)==m {print $1; exit}'; }
++
++# ---------------------------------------------------------------------------
++
++teardown() {
++	tc qdisc del dev $LAN root 2>/dev/null
++	[ -f "$STATE/wan" ] && tc qdisc del dev "$(cat "$STATE/wan")" root 2>/dev/null
++	for t in iptables ip6tables; do
++		command -v $t >/dev/null 2>&1 || continue
++		i=0; while [ $i -lt 5 ] && $t -t mangle -D PREROUTING -i $LAN -j SPEEDCTL 2>/dev/null; do i=$((i + 1)); done
++		$t -t mangle -F SPEEDCTL 2>/dev/null
++		$t -t mangle -X SPEEDCTL 2>/dev/null
++	done
++	rm -f "$STATE/sig" "$STATE/wan"
++}
++
++leaf() {	# dev classid-minor
++	tc qdisc add dev "$1" parent 1:$2 handle $2: sfq perturb 10 2>/dev/null
++}
++
++cls() {	# dev minor rate ceil prio
++	r="$3"; c="$4"
++	[ "$r" -gt "$c" ] && r="$c"
++	tc class add dev "$1" parent 1:1 classid 1:$2 htb rate ${r}kbit ceil ${c}kbit prio $5 quantum 1514
++	leaf "$1" "$2"
++}
++
++mark_rule() {	# MAC markid
++	for t in iptables ip6tables; do
++		command -v $t >/dev/null 2>&1 || continue
++		$t -t mangle -A SPEEDCTL -m mac --mac-source "$1" -j MARK --set-xmark $(printf '0x%x' $(($2 << 16)))/0xff0000 2>/dev/null
++	done
++}
++
++build() {
++	wan="$1"
++	modprobe -q sch_htb 2>/dev/null; modprobe -q sch_sfq 2>/dev/null
++	modprobe -q cls_u32 2>/dev/null; modprobe -q xt_mac 2>/dev/null; modprobe -q xt_mark 2>/dev/null
++
++	teardown
++
++	ld="$(to_kbit "$(nvd sc_line_down 30)")"; lu="$(to_kbit "$(nvd sc_line_up 30)")"
++	[ -z "$ld" ] || [ "$ld" -eq 0 ] && ld=100000
++	[ -z "$lu" ] || [ "$lu" -eq 0 ] && lu=100000
++	LD=$((ld * 95 / 100)); LU=$((lu * 95 / 100))
++
++	mode="$(nvd sc_mode each)"
++	od="$(nvd sc_down 5000)"; ou="$(nvd sc_up 1000)"
++	[ "$od" -eq 0 ] && od=$LD; [ "$ou" -eq 0 ] && ou=$LU
++	[ "$od" -gt "$LD" ] && od=$LD; [ "$ou" -gt "$LU" ] && ou=$LU
++
++	vip="$(nvq sc_vip)"
++	lanmac="$(lan_mac)"
++
++	# ---------- download: egress of LAN bridge ----------
++	ip link set $LAN txqueuelen 1000 2>/dev/null
++	tc qdisc add dev $LAN root handle 1: htb default 20 r2q 10 || { log "cannot create download shaper"; return 1; }
++	tc class add dev $LAN parent 1: classid 1:2 htb rate 50mbit ceil 100mbit prio 0 quantum 1514
++	leaf $LAN 2
++	tc class add dev $LAN parent 1: classid 1:1 htb rate ${LD}kbit ceil ${LD}kbit quantum 1514
++	cls $LAN 10 $((LD * 90 / 100)) $LD 0
++	cls $LAN 20 64 $od 1
++	[ -n "$lanmac" ] && tc filter add dev $LAN parent 1: protocol all prio 1 u32 $(mac_src_match "$lanmac") flowid 1:2
++
++	# ---------- upload: egress of WAN ----------
++	tc qdisc add dev "$wan" root handle 1: htb default 10 r2q 10 || { log "cannot create upload shaper on $wan"; tc qdisc del dev $LAN root 2>/dev/null; return 1; }
++	tc class add dev "$wan" parent 1: classid 1:1 htb rate ${LU}kbit ceil ${LU}kbit quantum 1514
++	cls "$wan" 10 $((LU * 90 / 100)) $LU 0
++	cls "$wan" 20 64 $ou 1
++	tc filter add dev "$wan" parent 1: protocol all prio 1 u32 match mark 0x10000 0xff0000 flowid 1:10
++	tc filter add dev "$wan" parent 1: protocol all prio 2 u32 match mark 0x20000 0xff0000 flowid 1:20
++
++	# ---------- marks for upload ----------
++	for t in iptables ip6tables; do
++		command -v $t >/dev/null 2>&1 || continue
++		$t -t mangle -N SPEEDCTL 2>/dev/null
++		$t -t mangle -F SPEEDCTL 2>/dev/null
++		$t -t mangle -A SPEEDCTL -j MARK --set-xmark 0x20000/0xff0000 2>/dev/null
++		$t -t mangle -C PREROUTING -i $LAN -j SPEEDCTL 2>/dev/null || $t -t mangle -I PREROUTING -i $LAN -j SPEEDCTL 2>/dev/null
++	done
++
++	n=0
++	add_dev() {	# MAC down up prio-class(0=vip)
++		n=$((n + 1)); [ $n -gt $MAXDEV ] && return
++		id=$((n + 16)); minor="$(printf '%x' $((256 + n)))"
++		if [ "$4" = vip ]; then
++			tc filter add dev $LAN parent 1: protocol all prio 2 u32 $(mac_dst_match "$1") flowid 1:10
++			mark_rule "$1" 1
++			return
++		fi
++		d="$2"; u="$3"
++		[ "$d" -eq 0 ] && d=$LD; [ "$u" -eq 0 ] && u=$LU
++		[ "$d" -gt "$LD" ] && d=$LD; [ "$u" -gt "$LU" ] && u=$LU
++		cls $LAN "$minor" 64 "$d" 1
++		cls "$wan" "$minor" 64 "$u" 1
++		tc filter add dev $LAN parent 1: protocol all prio 3 u32 $(mac_dst_match "$1") flowid 1:$minor
++		tc filter add dev "$wan" parent 1: protocol all prio 3 u32 match mark $(printf '0x%x' $((id << 16))) 0xff0000 flowid 1:$minor
++		mark_rule "$1" "$id"
++	}
++
++	for m in $vip; do add_dev "$m" 0 0 vip; done
++	for e in $(nvq sc_custom); do
++		m="${e%%,*}"; in_list "$m" "$vip" && continue
++		set -- $(echo "$e" | awk -F, '{print $2, $3}')
++		add_dev "$m" "${1:-0}" "${2:-0}" custom
++	done
++	if [ "$mode" = "each" ] && [ -f "$STATE/seen" ]; then
++		while read -r m; do
++			in_list "$m" "$vip" && continue
++			[ -n "$(custom_get "$m")" ] && continue
++			add_dev "$m" "$od" "$ou" each
++		done < "$STATE/seen"
++	fi
++
++	echo "$wan" > "$STATE/wan"
++	log "applied: mode=$mode others=$(fmt $od)/$(fmt $ou) line=$(fmt $ld)/$(fmt $lu) wan=$wan devices=$n"
++	return 0
++}
++
++signature() {
++	echo "$1|$(nvq sc_line_down)|$(nvq sc_line_up)|$(nvq sc_mode)|$(nvq sc_down)|$(nvq sc_up)|$(nvq sc_vip)|$(nvq sc_custom)|$(cat "$STATE/seen" 2>/dev/null | tr '\n' ' ')"
++}
++
++healthy() {	# wan
++	tc qdisc show dev $LAN 2>/dev/null | grep -q "htb 1:" || return 1
++	tc qdisc show dev "$1" 2>/dev/null | grep -q "htb 1:" || return 1
++	iptables -t mangle -C PREROUTING -i $LAN -j SPEEDCTL 2>/dev/null || return 1
++	return 0
++}
++
++sync_now() {
++	mkdir -p "$STATE"
++	if [ "$(nvd sc_enable 0)" != "1" ]; then
++		[ -f "$STATE/wan" ] && { teardown; log "disabled"; }
++		return 0
++	fi
++	case "$(nvq sfe_enable)" in
++	1|2) [ -f "$STATE/sfe_warned" ] || { log "warning: Software Offload (SFE) is on, limits may be bypassed. Run: speedctl on"; touch "$STATE/sfe_warned"; } ;;
++	esac
++	wan="$(wan_dev)"
++	[ -z "$wan" ] && return 0
++	if [ "$(nvd sc_mode each)" = "each" ]; then
++		touch "$STATE/seen"
++		connected_macs | while read -r m; do
++			grep -qx "$m" "$STATE/seen" || [ "$(wc -l < "$STATE/seen")" -ge $MAXDEV ] || echo "$m" >> "$STATE/seen"
++		done
++	fi
++	sig="$(signature "$wan")"
++	if [ "$sig" != "$(cat "$STATE/sig" 2>/dev/null)" ] || ! healthy "$wan"; then
++		build "$wan" && echo "$sig" > "$STATE/sig"
++	fi
++}
++
++need_mac() {
++	m="$(norm_mac "$1")"
++	[ -z "$m" ] && { echo "Invalid MAC address: '$1' (format aa:bb:cc:dd:ee:ff)" >&2; exit 1; }
++	echo "$m"
++}
++
++need_speed() {
++	k="$(to_kbit "$1")"
++	[ -z "$k" ] && { echo "Invalid speed: '$1' (examples: 5, 1.5, 512k, 0=unlimited)" >&2; exit 1; }
++	echo "$k"
++}
++
++saved() { nvram commit; rm -f "$STATE/sig"; sync_now; }
++
++rule_of() {
++	in_list "$1" "$(nvq sc_vip)" && { echo "VIP (full speed)"; return; }
++	c="$(custom_get "$1")"
++	if [ -n "$c" ]; then set -- $c; echo "custom $(fmt $1) down / $(fmt $2) up"; return; fi
++	if [ "$(nvd sc_mode each)" = "pool" ]; then echo "others (shared pool)"; else echo "others (own limit)"; fi
++}
++
++case "$1" in
++daemon)
++	if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then exit 0; fi
++	echo $$ > "$PIDFILE"
++	mkdir -p "$STATE"; rm -f "$STATE/seen" "$STATE/sig"
++	sleep 60
++	while :; do sync_now; sleep $POLL; done
++	;;
++on)
++	nvram set sc_enable=1
++	if [ -n "$(nvq sfe_enable)" ] && [ "$(nvq sfe_enable)" != "0" ]; then
++		nvram set sfe_enable=0
++		echo "Software Offload (SFE) turned off so limits work. Reboot once to finish."
++	fi
++	saved; echo "Speed Control is ON."
++	;;
++off)
++	nvram set sc_enable=0; saved; echo "Speed Control is OFF."
++	;;
++line)
++	[ $# -eq 3 ] || { echo "Usage: speedctl line DOWN UP   (your ISP plan, e.g. speedctl line 30 30)"; exit 1; }
++	cd="$(need_speed "$2")" || exit 1; cu="$(need_speed "$3")" || exit 1
++	nvram set sc_line_down="$2"; nvram set sc_line_up="$3"; saved
++	echo "Internet plan set to $(fmt $cd) down / $(fmt $cu) up."
++	;;
++others)
++	[ $# -eq 4 ] && { [ "$2" = each ] || [ "$2" = pool ]; } || { echo "Usage: speedctl others each|pool DOWN UP   (e.g. speedctl others each 5 1)"; exit 1; }
++	cd="$(need_speed "$3")" || exit 1; cu="$(need_speed "$4")" || exit 1
++	nvram set sc_mode="$2"; nvram set sc_down="$cd"; nvram set sc_up="$cu"; saved
++	if [ "$2" = each ]; then echo "Every other device: max $(fmt $cd) down / $(fmt $cu) up each."
++	else echo "All other devices together: max $(fmt $cd) down / $(fmt $cu) up."; fi
++	;;
++vip)
++	cm="$(need_mac "$3")" || exit 1
++	case "$2" in
++	add) in_list "$cm" "$(nvq sc_vip)" || nvram set sc_vip="$(echo $(nvq sc_vip) $cm)"; saved; echo "$cm is now VIP (full speed)." ;;
++	del) nvram set sc_vip="$(echo $(for x in $(nvq sc_vip); do [ "$x" != "$cm" ] && echo $x; done))"; saved; echo "$cm removed from VIP." ;;
++	*) echo "Usage: speedctl vip add|del MAC"; exit 1 ;;
++	esac
++	;;
++limit)
++	[ $# -eq 4 ] || { echo "Usage: speedctl limit MAC DOWN UP   (e.g. speedctl limit aa:bb:cc:dd:ee:ff 2 0.5)"; exit 1; }
++	cm="$(need_mac "$2")" || exit 1; cd="$(need_speed "$3")" || exit 1; cu="$(need_speed "$4")" || exit 1
++	nvram set sc_custom="$(echo $(for e in $(nvq sc_custom); do [ "${e%%,*}" != "$cm" ] && echo $e; done) $cm,$cd,$cu)"; saved
++	echo "$cm limited to $(fmt $cd) down / $(fmt $cu) up."
++	;;
++unlimit)
++	cm="$(need_mac "$2")" || exit 1
++	nvram set sc_custom="$(echo $(for e in $(nvq sc_custom); do [ "${e%%,*}" != "$cm" ] && echo $e; done))"; saved
++	echo "Custom limit removed from $cm."
++	;;
++apply)
++	rm -f "$STATE/sig"; sync_now; echo "Applied."
++	;;
++list)
++	printf "%-18s %-16s %-20s %s\n" "MAC" "IP" "NAME" "RULE"
++	connected_macs | while read -r m; do
++		printf "%-18s %-16s %-20s %s\n" "$m" "$(dev_ip "$m")" "$(dev_name "$m")" "$(rule_of "$m")"
++	done
++	;;
++status|"")
++	echo "Speed Control by Iqbal Mahmud"
++	echo "  enabled : $([ "$(nvd sc_enable 0)" = 1 ] && echo yes || echo no)"
++	echo "  plan    : $(fmt $(to_kbit "$(nvd sc_line_down 30)")) down / $(fmt $(to_kbit "$(nvd sc_line_up 30)")) up"
++	echo "  others  : $(nvd sc_mode each), $(fmt $(nvd sc_down 5000)) down / $(fmt $(nvd sc_up 1000)) up"
++	echo "  VIP     : $(nvq sc_vip)"
++	echo "  custom  : $(for e in $(nvq sc_custom); do echo "$e" | awk -F, '{printf "%s ", $1}'; done)"
++	echo "  WAN     : $(cat "$STATE/wan" 2>/dev/null || echo "not active")"
++	echo "  SFE     : $([ "$(nvq sfe_enable)" = 0 ] && echo off || echo "ON - run 'speedctl on' and reboot")"
++	;;
++*)
++	sed -n '2,23p' "$0" | sed 's/^# \{0,1\}//'
++	;;
++esac
+diff --git a/trunk/user/scripts/wan_watchdog.sh b/trunk/user/scripts/wan_watchdog.sh
+new file mode 100755
+index 000000000..3429e4ab0
+--- /dev/null
++++ b/trunk/user/scripts/wan_watchdog.sh
+@@ -0,0 +1,157 @@
++#!/bin/sh
++#
++# Smart WAN Watchdog for Padavan (built for TP-Link TL-WR845N v4)
++#
++# When the internet stays down it escalates step by step:
++#   1. waits  wd_fail_time  seconds (short blips are ignored)
++#   2. restarts the WAN connection (PPPoE/DHCP) up to  wd_wan_retries  times,
++#      waiting  wd_wan_wait  seconds after each try
++#   3. reboots the router
++# If reboots keep not helping (ISP outage), each further reboot waits longer
++# (wd_backoff_base, doubled each time, capped at wd_backoff_max), so the router
++# never gets stuck in a reboot loop. The counter resets once the internet has
++# been stable for wd_stable_time seconds.
++#
++# All settings are nvram keys (Administration -> Console, or SSH):
++#   nvram set wd_fail_time=300 && nvram commit
++# Logs go to the system log with tag "wan_watchdog".
++
++TAG="wan_watchdog"
++PIDFILE="/var/run/wan_watchdog.pid"
++POLL=10
++
++if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
++	exit 0
++fi
++echo $$ > "$PIDFILE"
++
++nv() {
++	v="$(nvram get "$1" 2>/dev/null)"
++	case "$v" in
++		''|*[!0-9]*) echo "$2" ;;
++		*) echo "$v" ;;
++	esac
++}
++
++log() { logger -t "$TAG" "$*"; }
++
++uptime_s() { cut -d. -f1 /proc/uptime; }
++
++# 1 = internet OK, 0 = lost, 2 = unknown (still checking)
++check_internet() {
++	if [ "$(nvram get di_poll_mode)" = "1" ]; then
++		case "$(nvram get link_internet)" in
++			1) echo 1 ;;
++			0) echo 0 ;;
++			*) echo 2 ;;
++		esac
++		return
++	fi
++	# Fallback if built-in Internet detection was turned off
++	for ip in 1.1.1.1 8.8.8.8 9.9.9.9; do
++		if ping -c 1 -W 3 "$ip" >/dev/null 2>&1; then
++			echo 1
++			return
++		fi
++	done
++	echo 0
++}
++
++backoff_for() {
++	# extra wait before reboot number $1+1 when $1 reboots already happened in a row
++	n="$1"
++	[ "$n" -le 0 ] && { echo 0; return; }
++	b="$(nv wd_backoff_base 300)"
++	m="$(nv wd_backoff_max 1800)"
++	i=1
++	while [ "$i" -lt "$n" ] && [ "$i" -lt 12 ]; do
++		b=$((b * 2))
++		i=$((i + 1))
++	done
++	[ "$b" -gt "$m" ] && b="$m"
++	echo "$b"
++}
++
++lost_since=0
++ok_since=0
++wan_tries=0
++last_wan_restart=0
++warned_mode=0
++
++sleep "$(nv wd_boot_grace 120)"
++log "started (reboots in a row so far: $(nv wd_reboots 0))"
++
++while :; do
++	sleep "$POLL"
++
++	if [ "$(nv wd_enable 1)" != "1" ]; then
++		lost_since=0; wan_tries=0; last_wan_restart=0
++		continue
++	fi
++
++	# only in router mode
++	if [ "$(nvram get sw_mode)" != "1" ]; then
++		[ "$warned_mode" = 0 ] && log "not in router mode, watchdog idle"
++		warned_mode=1
++		continue
++	fi
++
++	now="$(uptime_s)"
++	st="$(check_internet)"
++
++	if [ "$st" = "1" ]; then
++		if [ "$lost_since" -ne 0 ]; then
++			log "internet restored after $((now - lost_since))s"
++		fi
++		lost_since=0; wan_tries=0; last_wan_restart=0
++		[ "$ok_since" -eq 0 ] && ok_since="$now"
++		if [ "$(nv wd_reboots 0)" -ne 0 ] && [ $((now - ok_since)) -ge "$(nv wd_stable_time 600)" ]; then
++			nvram set wd_reboots=0
++			nvram commit
++			log "connection stable, reboot backoff reset"
++		fi
++		continue
++	fi
++
++	[ "$st" = "2" ] && continue
++
++	ok_since=0
++	if [ "$lost_since" -eq 0 ]; then
++		lost_since="$now"
++		log "internet lost"
++	fi
++	down=$((now - lost_since))
++
++	fail_time="$(nv wd_fail_time 180)"
++	max_wan="$(nv wd_wan_retries 2)"
++	wan_wait="$(nv wd_wan_wait 90)"
++
++	[ "$down" -lt "$fail_time" ] && continue
++
++	# Step 2: restart WAN
++	if [ "$wan_tries" -lt "$max_wan" ]; then
++		if [ "$last_wan_restart" -eq 0 ] || [ $((now - last_wan_restart)) -ge "$wan_wait" ]; then
++			wan_tries=$((wan_tries + 1))
++			last_wan_restart="$now"
++			log "internet down ${down}s: restarting WAN (try $wan_tries/$max_wan)"
++			restart_wan
++		fi
++		continue
++	fi
++	[ "$last_wan_restart" -ne 0 ] && [ $((now - last_wan_restart)) -lt "$wan_wait" ] && continue
++
++	# Step 3: reboot, with backoff if previous reboots did not help
++	reboots="$(nv wd_reboots 0)"
++	extra="$(backoff_for "$reboots")"
++	need=$((fail_time + max_wan * wan_wait + extra))
++	if [ "$down" -ge "$need" ]; then
++		reboots=$((reboots + 1))
++		nvram set wd_reboots="$reboots"
++		nvram commit
++		log "internet down ${down}s, WAN restart did not help: rebooting (reboot #$reboots in a row)"
++		sync
++		sleep 2
++		reboot
++		exit 0
++	fi
++done
+diff --git a/trunk/user/shared/defaults.c b/trunk/user/shared/defaults.c
+index 245d70b10..2f6ba1dbe 100644
+--- a/trunk/user/shared/defaults.c
++++ b/trunk/user/shared/defaults.c
+@@ -589,7 +589,29 @@ struct nvram_pair router_defaults[] = {
+ 	{ "controlrate_multicast", "0" },
+ 	{ "controlrate_broadcast", "10" },
+ 
+-	{ "di_poll_mode", "0" },
++	{ "di_poll_mode", "1" },
++
++	/* Smart WAN Watchdog (/usr/bin/wan_watchdog.sh) */
++	{ "wd_enable", "1" },
++	{ "wd_fail_time", "180" },
++	{ "wd_wan_retries", "2" },
++	{ "wd_wan_wait", "90" },
++	{ "wd_backoff_base", "300" },
++	{ "wd_backoff_max", "1800" },
++	{ "wd_stable_time", "600" },
++	{ "wd_boot_grace", "120" },
++	{ "wd_reboots", "0" },
++
++	/* Speed Control (/usr/bin/speedctl) - speeds in kbit, line in Mbps */
++	{ "sc_enable", "0" },
++	{ "sc_line_down", "30" },
++	{ "sc_line_up", "30" },
++	{ "sc_mode", "each" },
++	{ "sc_down", "5000" },
++	{ "sc_up", "1000" },
++	{ "sc_vip", "" },
++	{ "sc_custom", "" },
++
+ 	{ "di_timeout", "3" },
+ 	{ "di_time_done", "55" },
+ 	{ "di_time_fail", "5" },
+@@ -696,7 +718,7 @@ struct nvram_pair router_defaults[] = {
+ 	{ "fn2_action_short", "0" },
+ 	{ "fn2_action_long", "0" },
+ #endif
+-	{ "watchdog_cpu", "0" },
++	{ "watchdog_cpu", "1" },
+ 	{ "front_led_all", "1" },
+ 	{ "front_led_wan", "2" },
+ #if defined (BOARD_GPIO_LED_WAN) && defined (BOARD_GPIO_LED_WAN_PHY)
+diff --git a/trunk/user/shared/defaults.h b/trunk/user/shared/defaults.h
+index a94f59a34..ab9cceaf4 100755
+--- a/trunk/user/shared/defaults.h
++++ b/trunk/user/shared/defaults.h
+@@ -37,10 +37,10 @@
+ 
+ #define DEF_WLAN_2G_CC		"US"
+ #define DEF_WLAN_5G_CC		"US"
+-#define DEF_WLAN_2G_SSID	BOARD_PID "_%s"
+-#define DEF_WLAN_5G_SSID	BOARD_PID "_5G_%s"
+-#define DEF_WLAN_2G_GSSID	BOARD_PID "_GUEST_%s"
+-#define DEF_WLAN_5G_GSSID	BOARD_PID "_GUEST_5G_%s"
++#define DEF_WLAN_2G_SSID	"IqbalMahmud_WiFi"
++#define DEF_WLAN_5G_SSID	"IqbalMahmud_WiFi_5G"
++#define DEF_WLAN_2G_GSSID	"IqbalMahmud_Guest"
++#define DEF_WLAN_5G_GSSID	"IqbalMahmud_Guest_5G"
+ #define DEF_WLAN_2G_PSK		"1234567890"
+ #define DEF_WLAN_5G_PSK		"1234567890"
+ 
+diff --git a/trunk/user/www/Makefile b/trunk/user/www/Makefile
+index e023e5c32..beec98f0c 100755
+--- a/trunk/user/www/Makefile
++++ b/trunk/user/www/Makefile
+@@ -86,7 +86,7 @@ ifeq ($(CONFIG_FIRMWARE_INCLUDE_LANG_UK),y)
+ 	cp dict/UK.dict $(ROMFS_DIR)/www
+ endif
+ 	cat $(ROMFS_DIR)/www/EN.header dict/EN.footer > $(ROMFS_DIR)/www/EN.dict
+-	sed -i 's/^Web_Title=.*/Web_Title=ZVMODELVZ 路由器/' $(ROMFS_DIR)/www/*.dict
++	sed -i 's/^Web_Title=.*/Web_Title=Iqbal Mahmud Smart Router (ZVMODELVZ)/' $(ROMFS_DIR)/www/*.dict
+ 	sed $(BOARD_PATTERN) -i $(ROMFS_DIR)/www/*.dict
+ 	sed $(COPYR_PATTERN) -i $(ROMFS_DIR)/www/*.dict
+ 	sed $(DWURL_PATTERN) -i $(ROMFS_DIR)/www/*.dict
+diff --git a/trunk/user/www/n56u_ribbon_fixed/bootstrap/img/padavan_logo.png b/trunk/user/www/n56u_ribbon_fixed/bootstrap/img/padavan_logo.png
+index ec7b6bcd9e27c41fd564832e860791a568587e20..823fe7b32399e5d2046e62d74e0e81f57ebdc778 100755
+GIT binary patch
+delta 1707
+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
+BXZ8R9
+
+delta 928
+zcmdnZyN!K<N_}#GPl&5~flq*^n}e6PbAFXmMW=J`N~iucPRq|ZufFO$?~wDFtB!N_
+zId6UJyy%4UtUZpK?))baw70kKi9Kq`z`&qb666=mz{Db|6TNWn)i?j^>wo|MKP#lb
+zLhHdLzHKr|M|xJwcB^}Ew1qQ}fr06vr;B4q1!K|zRteU{2_ijA3>#AytTN<qO58kW
+z>8^YKbMtQ=d-tEksvxC7etC0*fLG&OuDYW|S?Z|)Q`=u>_HBLio;4*wc1ggJi$`lu
+zNc;_2HGhI;mLuniRd-|l#Ld6|=uy4T54*IktxQ>YOE|tif4)p2CUaW&O@n=rH9X}z
+zn|;|BQzGS}?hACcPK}Dam{Hb0%aG~G30JXGC2Qq19fGYBc!QGMzB{sWc;D3IlPWXz
+zI+zr{Hofxf|M-okHl<uq+391Ko*doyTVkP-Ws>fUZl_gm)#V;3HE%uE&9uVl))f2t
+zl^cIb^1M?DuZ{4&HHH1otdq?p7hIeU@6oJZ@=D0(UbTGt8MS@eJ!2TMxV>g%-H1Eh
+zCerleC|km=@870+-r*<`pZ(&D%&k3b*~?~jpN-$0y5+F~2Wz06V*!I!#`pjGi;@j5
+zb8<>ozBW5^yH!~(Ki^|!UT|8P*zZ1Lsl!_hFV)XIn)GGmwBSowN0VBQ+)lXH$uQxJ
+z#>{iC*0MghSmc!#HPPgP0$UzS!*l+Ld<^#1%uB127#nn^UY?%%{Zul$z|O?RUU_2|
+zw*&E)4l=v<uZ}t)tGik@o`?TS=T`yE+0&#>bxvcS@H^^Gr;W7#<jPk9J2!qva`fZ3
+zRNDJ1il3pe-d+80zqInrb*vwhv}IhGfTDamwuvRI7nW}KFw0!6R<q=(#-=KU^U+Z$
+zLgH>7$=QVk-=h7dt-4<1eVTDYy4ixB33J|U){uEVO<1?;>(+S;>)2KDdQx`JiJPbE
+zu3J^Q^-x%S{p1Cji&J9nZ8ll`(4{+W-(u0SnCbCsW#Pfc>r;BxyiU0Ln5$9r$jZ<+
+z+O6Tym)=z?^iM2pj(u5V<;xwV>&tijLCWIfNp2@*ow@$SBJ1Mn#iIOiQ(gHTeZKCr
+zR&o6?OYXVZ)Vm8se=H6zy?SVe@x!RSj<3RgP4<ovb#wps*=XysYgcAP{SSDZUY4EZ
+uyLP4N)_p<U^`Gr^{>=U_`FG~bpR8OiWtUccC`$)s5C%_IKbLh*2~7Z9O3H5l
+
+diff --git a/trunk/user/www/n56u_ribbon_fixed/state.js b/trunk/user/www/n56u_ribbon_fixed/state.js
+index 795a2ee8e..a2018d32c 100755
+--- a/trunk/user/www/n56u_ribbon_fixed/state.js
++++ b/trunk/user/www/n56u_ribbon_fixed/state.js
+@@ -567,6 +567,7 @@ function show_footer(){
+ 	footer_code = '<div align="center" class="bottom-image"></div>\n';
+ 	footer_code +='<div align="center" class="copyright"><#footer_copyright_desc#></div>\n';
+ 	footer_code +='<div align="center">\n';
++	footer_code +='  <span><b>Smart Router Firmware by <a href="https://iqbalmahmud.com" target="_blank">Iqbal Mahmud</a></b> &middot; Smart WAN Watchdog &amp; Speed Control</span></br>\n';
+ 	footer_code +='  <span>Developed by © Andy Padavan &amp; Linaro &amp; Alxdm &amp; Mahtab &amp; <a href="https://gitlab.com/hadzhioglu/padavan-ng">Hadzhioglu</a></span></br>\n';
+ 	footer_code +='  <span>Firmware distribution is prohibited</span></br>\n';
+ 	footer_code +='  <span>Non-Commercial Use Only</span></br>\n';
