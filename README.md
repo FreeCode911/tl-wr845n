@@ -98,6 +98,10 @@ speedctl on
 - Traffic between devices on your own network (e.g. file copy laptop → PC) is never limited, only internet traffic.
 - Activity is logged under **Administration → System Log** with the tag `speedctl`.
 
+## Mobile
+
+The web UI adapts to phones and tablets: the menu stacks above the page, settings rows stack, and wide tables scroll sideways. Desktop layout is unchanged.
+
 ## Language: English / বাংলা
 
 - Every page has an **English | বাংলা** switch in the footer and a floating 🌐 button in the bottom-right corner.

@@ -1517,6 +1517,62 @@ index 000000000..63fcd568a
 +</div>
 +</body>
 +</html>
+diff --git a/trunk/user/www/n56u_ribbon_fixed/bootstrap/css/main.css b/trunk/user/www/n56u_ribbon_fixed/bootstrap/css/main.css
+index 9647ab926..bfa03dd27 100755
+--- a/trunk/user/www/n56u_ribbon_fixed/bootstrap/css/main.css
++++ b/trunk/user/www/n56u_ribbon_fixed/bootstrap/css/main.css
+@@ -15,7 +15,7 @@ body.body_iframe{
+ }
+ 
+ #logo {
+-    background-image: url("/bootstrap/img/padavan_logo.png");
++    background-image: url("/bootstrap/img/iqbal_logo.png");
+     width: 150px;
+     height: 71px;
+     margin-top: 40px;
+diff --git a/trunk/user/www/n56u_ribbon_fixed/bootstrap/img/iqbal_logo.png b/trunk/user/www/n56u_ribbon_fixed/bootstrap/img/iqbal_logo.png
+new file mode 100755
+index 0000000000000000000000000000000000000000..823fe7b32399e5d2046e62d74e0e81f57ebdc778
+GIT binary patch
+literal 1723
+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
+RbCm!9002ovPDHLkV1o0yWg-9o
+
+literal 0
+HcmV?d00001
+
 diff --git a/trunk/user/www/n56u_ribbon_fixed/bootstrap/img/padavan_logo.png b/trunk/user/www/n56u_ribbon_fixed/bootstrap/img/padavan_logo.png
 index ec7b6bcd9e27c41fd564832e860791a568587e20..823fe7b32399e5d2046e62d74e0e81f57ebdc778 100755
 GIT binary patch
@@ -1577,7 +1633,7 @@ zR&o6?OYXVZ)Vm8se=H6zy?SVe@x!RSj<3RgP4<ovb#wps*=XysYgcAP{SSDZUY4EZ
 uyLP4N)_p<U^`Gr^{>=U_`FG~bpR8OiWtUccC`$)s5C%_IKbLh*2~7Z9O3H5l
 
 diff --git a/trunk/user/www/n56u_ribbon_fixed/state.js b/trunk/user/www/n56u_ribbon_fixed/state.js
-index 795a2ee8e..0d47e6934 100755
+index 795a2ee8e..8523f300c 100755
 --- a/trunk/user/www/n56u_ribbon_fixed/state.js
 +++ b/trunk/user/www/n56u_ribbon_fixed/state.js
 @@ -1,4 +1,5 @@
@@ -1586,7 +1642,15 @@ index 795a2ee8e..0d47e6934 100755
  var wan_route_x = '<% nvram_get_x("", "wan_route_x"); %>';
  var wan_proto = '<% nvram_get_x("", "wan_proto"); %>';
  var lan_proto = '<% nvram_get_x("", "lan_proto_x"); %>';
-@@ -390,7 +391,7 @@ tabtitle[3] = new Array("", "<#menu5_3_1#>", "<#menu5_3_3#>", "<#menu5_3_4#>", "
+@@ -229,6 +230,7 @@ var enabledBtnCommit = '<% nvram_match_x("","nvram_manual", "1", "btn-info"); %>
+ 
+ // L3 = The third Level of Menu
+ function show_banner(L3){
++	apply_branding();
+ 	var bc = '';
+ 	var style_2g = 'width:55px;';
+ 	var style_5g = 'width:55px;';
+@@ -390,7 +392,7 @@ tabtitle[3] = new Array("", "<#menu5_3_1#>", "<#menu5_3_3#>", "<#menu5_3_4#>", "
  tabtitle[4] = new Array("", "<#menu5_5_1#>", "<#menu5_5_5#>", "<#menu5_5_2#>", "<#menu5_5_3#>", "<#menu5_5_4#>");
  tabtitle[5] = new Array("", "<#menu5_4_3#>", "<#menu5_4_1#>", "<#menu5_4_2#>", "<#menu5_4_4#>", "<#menu5_4_5#>");
  tabtitle[6] = new Array("", "<#menu5_6_2#>", "<#menu5_6_5#>", "<#menu5_6_1#>", "<#menu5_6_3#>", "<#menu5_6_4#>", "<#menu5_6_6#>");
@@ -1595,7 +1659,7 @@ index 795a2ee8e..0d47e6934 100755
  tabtitle[8] = new Array("", "<#menu5_11#>", "<#menu5_12#>", "WAN", "", "", "", "", "", "", "");
  tabtitle[9] = new Array("", "<#menu5_7_2#>", "<#menu5_7_3#>", "<#menu5_7_5#>", "<#menu5_7_6#>", "<#menu5_7_8#>");
  
-@@ -403,7 +404,7 @@ tablink[3] = new Array("", "Advanced_WAN_Content.asp", "Advanced_IPv6_Content.as
+@@ -403,7 +405,7 @@ tablink[3] = new Array("", "Advanced_WAN_Content.asp", "Advanced_IPv6_Content.as
  tablink[4] = new Array("", "Advanced_BasicFirewall_Content.asp", "Advanced_Netfilter_Content.asp", "Advanced_URLFilter_Content.asp", "Advanced_MACFilter_Content.asp", "Advanced_Firewall_Content.asp");
  tablink[5] = new Array("", "Advanced_AiDisk_others.asp", "Advanced_AiDisk_samba.asp", "Advanced_AiDisk_ftp.asp", "Advanced_Modem_others.asp", "Advanced_Printer_others.asp");
  tablink[6] = new Array("", "Advanced_System_Content.asp", "Advanced_Services_Content.asp", "Advanced_OperationMode_Content.asp", "Advanced_FirmwareUpgrade_Content.asp", "Advanced_SettingBackup_Content.asp", "Advanced_Console_Content.asp");
@@ -1604,7 +1668,7 @@ index 795a2ee8e..0d47e6934 100755
  tablink[8] = new Array("", "Main_WStatus2g_Content.asp", "Main_WStatus_Content.asp", "", "", "", "", "", "", "", "");
  tablink[9] = new Array("", "Main_LogStatus_Content.asp", "Main_DHCPStatus_Content.asp", "Main_IPTStatus_Content.asp", "Main_RouteStatus_Content.asp", "Main_CTStatus_Content.asp");
  
-@@ -567,12 +568,16 @@ function show_footer(){
+@@ -567,12 +569,17 @@ function show_footer(){
  	footer_code = '<div align="center" class="bottom-image"></div>\n';
  	footer_code +='<div align="center" class="copyright"><#footer_copyright_desc#></div>\n';
  	footer_code +='<div align="center">\n';
@@ -1618,13 +1682,66 @@ index 795a2ee8e..0d47e6934 100755
 +
  	$("footer").innerHTML = footer_code;
 +	show_lang_pill();
++	apply_branding();
  
  	flash_button();
  }
-@@ -647,6 +652,38 @@ function show_loading_obj(){
+@@ -647,6 +654,89 @@ function show_loading_obj(){
  	id_check_status = setTimeout('hideLoading();', 3000);
  }
  
++// Branding + mobile layout (Iqbal Mahmud build). Injected from here because
++// state.js is never cached by the router, while .png/.css are cached for 30 days.
++var im_mobile_css = ''
++ + '@media (max-width: 979px) {'
++ + ' body { overflow-x: hidden; }'
++ + ' .wrapper, .syslog_panel { width: auto !important; }'
++ + ' .wrapper { padding: 0 6px; }'
++ + ' .container-fluid { padding-left: 0 !important; padding-right: 0 !important; margin-left: 0 !important; }'
++ + ' .row-fluid [class*="span"] { float: none !important; display: block; width: auto !important; margin-left: 0 !important; }'
++ + ' #logo { margin: 8px auto !important; }'
++ + ' .table tr > th:first-child:nth-last-child(2), .table tr > th:first-child:nth-last-child(2) + td { display: block; width: auto !important; }'
++ + ' .table tr > th:first-child:nth-last-child(2) + td { border-top: 0; padding-top: 0; }'
++ + ' input, select, textarea { max-width: 100% !important; box-sizing: border-box; }'
++ + ' .im-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }'
++ + ' .nav-tabs > li { float: none; display: inline-block; }'
++ + ' .box_head { font-size: 15px; }'
++ + ' #lang_pill { font-size: 15px !important; padding: 7px 14px !important; }'
++ + '}';
++
++function apply_branding(){
++	var d = document, h = d.getElementsByTagName('head')[0], i, t;
++	if (h && !d.querySelector('meta[name="viewport"]')) {
++		var m = d.createElement('meta');
++		m.name = 'viewport';
++		m.content = 'width=device-width, initial-scale=1';
++		h.appendChild(m);
++	}
++	if (h && !d.getElementById('im_mobile_css')) {
++		var st = d.createElement('style');
++		st.id = 'im_mobile_css';
++		st.appendChild(d.createTextNode(im_mobile_css));
++		h.appendChild(st);
++	}
++	var lg = d.getElementById('logo');
++	if (lg)
++		lg.style.backgroundImage = 'url(/bootstrap/img/iqbal_logo.png)';
++	// wide tables (3+ columns) scroll sideways on small screens instead of overflowing
++	var tbls = d.querySelectorAll('table.table');
++	for (i = 0; i < tbls.length; i++) {
++		t = tbls[i];
++		if (t.parentNode && t.parentNode.className == 'im-scroll')
++			continue;
++		var r = t.rows && t.rows.length ? t.rows[t.rows.length > 1 ? 1 : 0] : null;
++		if (!r || r.cells.length < 3)
++			continue;
++		var w = d.createElement('div');
++		w.className = 'im-scroll';
++		t.parentNode.insertBefore(w, t);
++		w.appendChild(t);
++	}
++}
++
 +// English / Bangla switch (Iqbal Mahmud build)
 +function lang_switch_code(){
 +	var en = (cur_lang == 'BN') ? '<a href="javascript:set_lang(\'EN\')">English</a>' : '<b>English</b>';
@@ -1644,17 +1761,16 @@ index 795a2ee8e..0d47e6934 100755
 +	document.body.appendChild(d);
 +}
 +
-+function set_lang(lang){
-+	if (lang == cur_lang || !document.titleForm)
++function set_lang(new_lang){
++	var f = document.titleForm;
++	if (new_lang == cur_lang || !f)
 +		return;
 +	showLoading();
-+	with(document.titleForm){
-+		action = "/start_apply.htm";
-+		current_page.value = (location.pathname == "/") ? "/index.asp" : location.pathname;
-+		preferred_lang.value = lang;
-+		flag.value = "set_language";
-+		submit();
-+	}
++	f.action = "/start_apply.htm";
++	f.current_page.value = (location.pathname == "/") ? "/index.asp" : location.pathname;
++	f.preferred_lang.value = new_lang;
++	f.flag.value = "set_language";
++	f.submit();
 +}
 +
  function submit_language(){
