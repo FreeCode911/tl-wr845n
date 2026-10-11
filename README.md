@@ -3,7 +3,8 @@
 Custom Padavan firmware for the **TP-Link TL-WR845N v4** (MT7628NN, 4 MB flash, 32 MB RAM), by **[Iqbal Mahmud](https://iqbalmahmud.com)**.
 
 - **Smart WAN Watchdog**: the router fixes its own internet drops.
-- **Speed Control**: chosen devices get full speed, everyone else gets the limit you set.
+- **Speed Control**: chosen devices get full speed, everyone else gets the limit you set. Set it from its own web page.
+- **English / বাংলা**: switch the web UI language with one click.
 - **Iqbal Mahmud branding**: logo, page title, footer, SSH banner, default Wi-Fi name.
 
 Based on [lucktu/padavan_TW641](https://github.com/lucktu/padavan_TW641) (padavan-ng, Linux 3.4), pinned to commit `90f694d`. GPL v2.
@@ -14,7 +15,8 @@ Based on [lucktu/padavan_TW641](https://github.com/lucktu/padavan_TW641) (padava
 |---|---|---|
 | Smart WAN Watchdog | ✅ | ✅ |
 | Hardware CPU watchdog | ✅ | ✅ |
-| Speed Control (VIP / per-device / shared pool) | ❌ | ✅ |
+| Speed Control (VIP / per-device / shared pool) | ❌ | ✅ web page + commands |
+| Bengali (বাংলা) web UI with one-click switch | ❌ | ✅ |
 | Traffic control (`tc`, HTB) | ❌ | ✅ |
 | IPSet | ✅ | ❌ removed to make room |
 | Branding | Padavan | Iqbal Mahmud |
@@ -47,9 +49,21 @@ Three kinds of device:
 
 Devices are matched by **MAC address**, so rules keep working when IPs change. New devices are picked up within about 15 s.
 
+### Web page (easiest)
+
+**Advanced Settings → Customization → Speed Control**
+
+1. **Enable Speed Control?** → Yes
+2. **Your internet plan**: your real ISP speed, download / upload in Mbps.
+3. **All other devices**: choose *Each device gets its own limit* or *All devices share one limit*, and the speed.
+4. **Devices**: every connected device is listed with name, IP and MAC. Set its **Rule** to *Others*, *VIP (full speed)* or *Custom limit* (then type its download/upload). Add a device that is not connected yet with **Add device by MAC**.
+5. Press **Apply**. Rules take effect within about 15 seconds; no reboot needed.
+
+The device list refreshes every 15 s; press **Refresh** to reload it.
+
 ### Commands
 
-Run them in **Administration → Console** (or SSH). Speeds are in **Mbps** (`5`, `1.5`) or kbps with `k` (`512k`). `0` = unlimited.
+The same settings can be changed in **Administration → Console** (or SSH). Speeds are in **Mbps** (`5`, `1.5`) or kbps with `k` (`512k`). `0` = unlimited.
 
 ```sh
 speedctl list                          # connected devices, MAC, name, current rule
@@ -80,9 +94,17 @@ speedctl on
 ### Notes
 
 - Set `speedctl line` to your **real** plan speed. Too high and VIP priority gets weaker; too low and everyone is capped below what you pay for.
-- `speedctl on` switches off Software Offload (SFE), which would otherwise skip the limits. If it says so, reboot once.
+- When Speed Control is on, it automatically switches off Software Offload (SFE), which would otherwise skip the limits.
 - Traffic between devices on your own network (e.g. file copy laptop → PC) is never limited, only internet traffic.
 - Activity is logged under **Administration → System Log** with the tag `speedctl`.
+
+## Language: English / বাংলা
+
+- Every page has an **English | বাংলা** switch in the footer and a floating 🌐 button in the bottom-right corner.
+- Your choice is saved on the router. Browsers set to Bengali open in Bengali automatically on first visit.
+- Translated: menus, status bar, Network Map, Internet (WAN), Wi-Fi 2.4GHz, LAN, DHCP, Administration, Firmware Upgrade, Settings backup, System Log, Internet Detector, Console and Speed Control (about 450 texts). Deeper advanced pages fall back to English automatically.
+- Technical terms (PPPoE, DHCP, MAC, SSID, MTU) stay in English on purpose.
+- Translations live in `BN.dict` inside the patch; corrections are welcome.
 
 ## Build (GitHub Actions)
 

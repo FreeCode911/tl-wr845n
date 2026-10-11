@@ -60,10 +60,10 @@ jobs:
           [ -n "$FW" ] || { echo "Firmware file not found"; exit 1; }
           cp "$FW" "$GITHUB_WORKSPACE/IqbalMahmud_WR845Nv4_v2.bin"
 
-      - name: Check Speed Control is inside the image
+      - name: Check Speed Control and Bengali are inside the image
         run: |
           R=src/trunk/romfs
-          for f in usr/bin/speedctl usr/bin/wan_watchdog.sh bin/tc; do
+          for f in usr/bin/speedctl usr/bin/wan_watchdog.sh bin/tc www/BN.dict www/Advanced_SpeedControl_Content.asp; do
             [ -e "$R/$f" ] && echo "OK  /$f" || echo "::warning::MISSING /$f in image"
           done
 
