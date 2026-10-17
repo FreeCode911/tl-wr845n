@@ -1,17 +1,3 @@
-diff --git a/trunk/user/httpd/httpd.c b/trunk/user/httpd/httpd.c
-index 387095600..e64e271b8 100755
---- a/trunk/user/httpd/httpd.c
-+++ b/trunk/user/httpd/httpd.c
-@@ -162,6 +162,9 @@ const struct language_table language_tables[] = {
- 	{"sv", "SV"},
- 	{"sv-FI", "SV"},
- 	{"sv-SE", "SV"},
-+	{"bn", "BN"},
-+	{"bn-bd", "BN"},
-+	{"bn-in", "BN"},
- 	{NULL, NULL}
- };
- 
 diff --git a/trunk/user/httpd/variables.c b/trunk/user/httpd/variables.c
 index 0ce398f9b..4f2840205 100755
 --- a/trunk/user/httpd/variables.c
@@ -20,7 +6,7 @@ index 0ce398f9b..4f2840205 100755
  			{"modem_mtu", "", NULL, EVM_RESTART_MODEM},
  			{"modem_zcd", "", NULL, FALSE},
  			{"di_poll_mode", "", NULL, EVM_RESTART_DI},
-+			/* Speed Control (Iqbal Mahmud build); speedctl applies changes itself */
++			/* Speed Control (Libin build); speedctl applies changes itself */
 +			{"sc_enable", "", NULL, FALSE},
 +			{"sc_line_down", "", NULL, FALSE},
 +			{"sc_line_up", "", NULL, FALSE},
@@ -69,14 +55,14 @@ index 985645ada..1e036a0c7 100755
 - / ____/ /_/ / /_/ / /_/ /| |/ / /_/ / / / /
 -/_/    \__,_/\__,_/\__,_/ |___/\__,_/_/ /_/ 
 -                                            
-+    ____      __          __   __  ___      __                        __
-+   /  _/___ _/ /_  ____ _/ /  /  |/  /___ _/ /_  ____ ___  __  ______/ /
-+   / // __ `/ __ \/ __ `/ /  / /|_/ / __ `/ __ \/ __ `__ \/ / / / __  / 
-+ _/ // /_/ / /_/ / /_/ / /  / /  / / /_/ / / / / / / / / / /_/ / /_/ /  
-+/___/\__, /_.___/\__,_/_/  /_/  /_/\__,_/_/ /_/_/ /_/ /_/\__,_/\__,_/   
-+       /_/                                                              
++    __    _ __    _     
++   / /   (_) /_  (_)___ 
++  / /   / / __ \\/ / __ \\
++ / /___/ / /_/ / / / / /
++/_____/_/_.___/_/_/ /_/ 
++                        
 +
-+  Smart Router Firmware by Iqbal Mahmud - iqbalmahmud.com
++  Smart Router Firmware by Libin
 +  Based on Padavan (padavan-ng / lucktu) - GPL v2
 +
 diff --git a/trunk/user/scripts/speedctl.sh b/trunk/user/scripts/speedctl.sh
@@ -87,7 +73,7 @@ index 000000000..af59bb163
 @@ -0,0 +1,341 @@
 +#!/bin/sh
 +#
-+# Speed Control for Padavan - by Iqbal Mahmud (iqbalmahmud.com)
++# Speed Control for Padavan - by Libin
 +#
 +# VIP devices      : full speed, and priority over everyone else
 +# Custom devices   : their own download/upload limit
@@ -413,7 +399,7 @@ index 000000000..af59bb163
 +	done
 +	;;
 +status|"")
-+	echo "Speed Control by Iqbal Mahmud"
++	echo "Speed Control by Libin"
 +	echo "  enabled : $([ "$(nvd sc_enable 0)" = 1 ] && echo yes || echo no)"
 +	echo "  plan    : $(fmt $(to_kbit "$(nvd sc_line_down 30)")) down / $(fmt $(to_kbit "$(nvd sc_line_up 30)")) up"
 +	echo "  others  : $(nvd sc_mode each), $(fmt $(nvd sc_down 5000)) down / $(fmt $(nvd sc_up 1000)) up"
@@ -645,10 +631,10 @@ index a94f59a34..ab9cceaf4 100755
 -#define DEF_WLAN_5G_SSID	BOARD_PID "_5G_%s"
 -#define DEF_WLAN_2G_GSSID	BOARD_PID "_GUEST_%s"
 -#define DEF_WLAN_5G_GSSID	BOARD_PID "_GUEST_5G_%s"
-+#define DEF_WLAN_2G_SSID	"IqbalMahmud_WiFi"
-+#define DEF_WLAN_5G_SSID	"IqbalMahmud_WiFi_5G"
-+#define DEF_WLAN_2G_GSSID	"IqbalMahmud_Guest"
-+#define DEF_WLAN_5G_GSSID	"IqbalMahmud_Guest_5G"
++#define DEF_WLAN_2G_SSID	"Libin_WiFi"
++#define DEF_WLAN_5G_SSID	"Libin_WiFi_5G"
++#define DEF_WLAN_2G_GSSID	"Libin_Guest"
++#define DEF_WLAN_5G_GSSID	"Libin_Guest_5G"
  #define DEF_WLAN_2G_PSK		"1234567890"
  #define DEF_WLAN_5G_PSK		"1234567890"
  
@@ -656,479 +642,16 @@ diff --git a/trunk/user/www/Makefile b/trunk/user/www/Makefile
 index e023e5c32..2c9ac56f7 100755
 --- a/trunk/user/www/Makefile
 +++ b/trunk/user/www/Makefile
-@@ -85,8 +85,11 @@ ifeq ($(CONFIG_FIRMWARE_INCLUDE_LANG_UK),y)
+@@ -85,8 +85,8 @@ ifeq ($(CONFIG_FIRMWARE_INCLUDE_LANG_UK),y)
  	echo "LANG_UK=Українська" >> $(ROMFS_DIR)/www/EN.header
  	cp dict/UK.dict $(ROMFS_DIR)/www
  endif
-+	# Bengali (Iqbal Mahmud build): always included
-+	echo "LANG_BN=বাংলা" >> $(ROMFS_DIR)/www/EN.header
-+	cp dict/BN.dict $(ROMFS_DIR)/www
  	cat $(ROMFS_DIR)/www/EN.header dict/EN.footer > $(ROMFS_DIR)/www/EN.dict
 -	sed -i 's/^Web_Title=.*/Web_Title=ZVMODELVZ 路由器/' $(ROMFS_DIR)/www/*.dict
-+	sed -i 's/^Web_Title=.*/Web_Title=Iqbal Mahmud Smart Router (ZVMODELVZ)/' $(ROMFS_DIR)/www/*.dict
++	sed -i 's/^Web_Title=.*/Web_Title=Libin Smart Router (ZVMODELVZ)/' $(ROMFS_DIR)/www/*.dict
  	sed $(BOARD_PATTERN) -i $(ROMFS_DIR)/www/*.dict
  	sed $(COPYR_PATTERN) -i $(ROMFS_DIR)/www/*.dict
  	sed $(DWURL_PATTERN) -i $(ROMFS_DIR)/www/*.dict
-diff --git a/trunk/user/www/dict/BN.dict b/trunk/user/www/dict/BN.dict
-new file mode 100644
-index 000000000..1c00c1a85
---- /dev/null
-+++ b/trunk/user/www/dict/BN.dict
-@@ -0,0 +1,454 @@
-+[Language type]
-+LANG_EN=English
-+LANG_BN=বাংলা
-+Adm_Setting_commit_item0=প্রতিটি পরিবর্তনের পর সবসময়
-+Adm_Setting_commit_item1=শুধু নিজে করলে
-+Adm_Setting_commit_mode=NVRAM ফ্ল্যাশ মেমরিতে সেভ করার পদ্ধতি:
-+Adm_Setting_commit_now=এখনই NVRAM ফ্ল্যাশ মেমরিতে সেভ করুন:
-+Adm_Setting_nvram=রাউটারের সেটিংস (NVRAM)
-+Adm_Setting_rwfs=NAND ফ্ল্যাশে ব্যবহারকারীর R/W পার্টিশন
-+Adm_Setting_rwfs_mount=R/W পার্টিশনে মাউন্ট করা ফাইল সিস্টেম:
-+Adm_Setting_store=রাউটারের অভ্যন্তরীণ স্টোরেজ (/etc/storage)
-+Adm_Setting_store_backup=স্টোরেজ ব্যাকআপ:
-+Adm_Setting_store_hint=স্টোরেজের সব ফাইল মুছে ডিফল্ট অবস্থায় ফিরিয়ে আনা হবে।\n
-+Adm_Setting_store_now=এখনই অভ্যন্তরীণ স্টোরেজ ফ্ল্যাশ মেমরিতে সেভ করুন:
-+Adm_Setting_store_stats=নেটওয়ার্ক ট্রাফিকের ইতিহাস অভ্যন্তরীণ স্টোরেজে সেভ করবেন?
-+Adm_Setting_store_stats_item1=হ্যাঁ, ফ্ল্যাশে সেভ ছাড়া
-+Adm_Setting_store_stats_item2=প্রতি মাসে অটো-সেভ
-+Adm_Setting_store_stats_item3=প্রতি ২ সপ্তাহে অটো-সেভ
-+Adm_Setting_store_stats_item4=প্রতি সপ্তাহে অটো-সেভ
-+Adm_Setting_store_stats_item5=প্রতি ২ দিনে অটো-সেভ
-+Adm_Setting_store_stats_item6=প্রতিদিন অটো-সেভ
-+Adm_Setting_store_stats_item7=প্রতি ১২ ঘণ্টায় অটো-সেভ
-+Adm_Setting_store_stime=বর্তমান সিস্টেম সময় অভ্যন্তরীণ স্টোরেজে সেভ করবেন?
-+Adm_System_admin=অ্যাডমিন লগইন:
-+Adm_System_desc=রাউটারের মূল পরিচালনা নিয়ন্ত্রণ।
-+Adm_System_help=সহায়ক টিপস চালু করবেন?
-+Adm_System_ident=সিস্টেম পরিচিতি
-+Adm_System_logf=ভাসমান সিস্টেম লগ টুলবার চালু করবেন?
-+Adm_System_logf_item2=শেষ ১০০ লাইন
-+Adm_System_ntpp=NTP সময় মেলানোর বিরতি:
-+Adm_System_zram_clzx=ZRAM কম্প্রেশন পদ্ধতি:
-+Adm_System_zram_itemname=ZRAM চালু করবেন?
-+Availdisk=খালি আছে
-+BOP_ctype_title1=স্বয়ংক্রিয় IP
-+BOP_ctype_title5=স্থায়ী (Static) IP
-+BTN_FREEMEMORY=মেমরি খালি করা
-+BTN_REBOOT=রিবুট
-+BTN_SHUTDOWN=বন্ধ করুন
-+Block=ব্লক
-+BlockedClient=ব্লক করা ডিভাইসের তালিকা
-+CTL_Commit=সেভ করুন
-+CTL_Disabled=বন্ধ
-+CTL_add=যোগ করুন
-+CTL_apply=প্রয়োগ করুন
-+CTL_clear=মুছুন
-+CTL_onlysave=সেভ
-+CTL_refresh=রিফ্রেশ
-+CTL_restore=রিসেট
-+CTL_upload=আপলোড
-+Commit_confirm=সেটিংস (NVRAM) স্থায়ীভাবে সেভ করবেন?
-+Computer_Name=নাম
-+Connect=আবার সংযোগ
-+ConnectedClient=ডিভাইসের তালিকা
-+ConnectionStatus=সংযোগের অবস্থা:
-+Connectiontype=সংযোগের ধরন
-+Console_warn=সতর্কতা! কনসোলে শুধু সেই কমান্ড চালান যেগুলো সাথে সাথে ফল দেয়। [top], [ping], [traceroute] এর মতো কমান্ড ওয়েব প্যানেল আটকে দেবে।
-+CustomConf=কাস্টম কনফিগারেশন ফাইল
-+DAY_Fri=শুক্র
-+DAY_Mon=সোম
-+DAY_Sat=শনি
-+DAY_Sun=রবি
-+DAY_Thu=বৃহঃ
-+DAY_Tue=মঙ্গল
-+DAY_Wed=বুধ
-+DHCP_Verbose=DHCP সার্ভারের বিস্তারিত লগ:
-+DISK_UNMOUNTED=আনমাউন্ট করা
-+DNS=DNS:
-+Day=দিন
-+Device_Searching=খোঁজা হচ্ছে, অনুগ্রহ করে অপেক্ষা করুন...
-+Device_type_01_PC=কম্পিউটার
-+Device_type_02_RT=রাউটার
-+Device_type_03_AP=অ্যাক্সেস পয়েন্ট
-+Device_type_05_IC=IP ক্যামেরা
-+Device_type_06_OD=অন্যান্য ডিভাইস
-+Disconnect=সংযোগ বিচ্ছিন্ন
-+FIRM_ok_desc=ফার্মওয়্যার আপগ্রেড হচ্ছে। প্রায় ২-৩ মিনিট অপেক্ষা করুন। এই সময় রাউটারের বিদ্যুৎ বন্ধ করবেন না।
-+FW_desc1=নিচের নির্দেশনাগুলো অনুসরণ করুন:
-+FW_desc2=<a href="ZVDWURLVZ" target="blank">ফার্মওয়্যার সোর্স কোড ওয়েবসাইটে</a> নতুন ভার্সন আছে কিনা দেখুন।
-+FW_desc3=সঠিক ভার্সনটি আপনার কম্পিউটারে ডাউনলোড করুন।
-+FW_desc4=[নতুন ফার্মওয়্যার ফাইল] ঘরে ডাউনলোড করা ফাইলটি বেছে নিন।
-+FW_desc5=[আপলোড] চাপুন। ফাইলটি রাউটারে যেতে প্রায় ২-৩ মিনিট লাগে।
-+FW_desc6=সঠিক ফাইল পেলে রাউটার নিজেই আপগ্রেড শুরু করবে এবং শেষে রিবুট হবে।
-+FW_desc7=আপডেটের সময় "Firmware image is corrupt! Check free space in /tmp!" দেখালে: প্রথমে "Increase /tmp" বোতাম চাপুন, তারপর আবার ফার্মওয়্যার দিন।
-+FW_item1=প্রোডাক্ট আইডি:
-+FW_item2=ফার্মওয়্যার ভার্সন:
-+FW_item5=নতুন ফার্মওয়্যার ফাইল:
-+FW_n1=পুরনো ও নতুন দুই ফার্মওয়্যারেই যে সেটিংস আছে, আপগ্রেডের পরও সেগুলো থেকে যাবে।
-+FW_n2=আপগ্রেড ব্যর্থ হলে রাউটার নিজে থেকে রিকভারি মোডে চলে যায়, সামনের লাইটগুলো তা দেখাবে। তখন TFTP বা প্রোগ্রামার দিয়ে রিকভারি করতে হবে।
-+FW_note=মনে রাখুন:
-+File_Pop_content_alert_desc1=ইউজারনেম খালি রাখা যাবে না।
-+File_Pop_content_alert_desc7=দুটি পাসওয়ার্ড একই হতে হবে!
-+FirewallConfig_URLActiveTime_itemhint2=সময়সীমা সঠিক নয়।
-+Full_Clients=ডিভাইস
-+GO_5G=5GHz সেটিংসে যান
-+Gateway=গেটওয়ে
-+General_x_FirmwareVersion_itemname=ফার্মওয়্যার:
-+General_x_SystemTime_itemname=সিস্টেম সময়
-+HardwareNAT=হার্ডওয়্যার অফলোড NAT/রাউটিং IPv4:
-+Hour=ঘণ্টা
-+IP4_Addr=IPv4 ঠিকানা
-+IP6_Addr=IPv6 ঠিকানা
-+IPConnection_ExternalIPAddress_itemname=IP ঠিকানা:
-+IPConnection_ExternalIPAddress_sectionname=WAN IP সেটিংস
-+IPConnection_VSList_Norule=টেবিলে কোনো তথ্য নেই।
-+IPConnection_warning_WANIPEQUALGatewayIP=আপনি WAN IP কে গেটওয়ে হিসেবে দিয়েছেন, এতে ইন্টারনেট সংযোগ নাও হতে পারে। সঠিক গেটওয়ে দিন।
-+IPConnection_x_DNSServer1_itemname=DNS সার্ভার
-+IPConnection_x_DNSServerEnable_itemname=DNS সার্ভারের ঠিকানা স্বয়ংক্রিয়ভাবে নেবে?
-+IPConnection_x_DNSServerEnable_sectionname=WAN DNS সেটিংস
-+IPConnection_x_ExternalGateway_itemname=ডিফল্ট গেটওয়ে:
-+IPConnection_x_ExternalSubnetMask_itemname=সাবনেট মাস্ক:
-+IP_Address=IP ঠিকানা
-+ISP_Authentication_host=অথেনটিকেশন সার্ভার IP:
-+ISP_Authentication_mode=অথেনটিকেশন:
-+ISP_Authentication_pass=পাসওয়ার্ড:
-+ISP_Authentication_user=লগইন:
-+InetCheckEvents=ইন্টারনেট সংযোগের অবস্থা বদলালে যা হবে
-+InetCheckHostIP4=রিমোট সার্ভারের ঠিকানা ও পোর্ট
-+InetCheckHosts=TCP সংযোগ পরীক্ষার জন্য ইন্টারনেট সার্ভারের তালিকা
-+InetCheckLostAction=[ইন্টারনেট বিচ্ছিন্ন] হলে যা করবে:
-+InetCheckLostDelay=[ইন্টারনেট বিচ্ছিন্ন] ঘোষণার আগে অপেক্ষা (সেকেন্ড):
-+InetCheckLostItem0=কিছু করবে না
-+InetCheckLostItem1=রাউটার রিবুট
-+InetCheckLostItem2=WAN আবার সংযোগ
-+InetCheckLostItem3=Ethernet WAN <=> USB মডেম বদল
-+InetCheckMode=ইন্টারনেট পরীক্ষার পদ্ধতি
-+InetCheckModeItem0=শুধু ওয়েব প্যানেল খোলা থাকলে
-+InetCheckModeItem1=সবসময় পরীক্ষা
-+InetCheckPeriod=সংযোগ সফল/ব্যর্থ হওয়ার পর পরীক্ষার বিরতি (সেকেন্ড):
-+InetCheckPoll=ইন্টারনেট সার্ভার পরীক্ষার সেটিংস
-+InetCheckReconPause=নতুন WAN সংযোগের আগে বিরতি (সেকেন্ড):
-+InetCheckTimeout=TCP সংযোগের সময়সীমা (সেকেন্ড):
-+InetCheck_desc=ইন্টারনেট ডিটেক্টর সবসময় ইন্টারনেট সংযোগ পরীক্ষা করে এবং অবস্থা বদলালে প্রয়োজনীয় কাজ করতে পারে।
-+InetControl=সংযোগ নিয়ন্ত্রণ:
-+InetState0=সংযুক্ত
-+InetState1=ইথারনেট ক্যাবল লাগানো নেই
-+InetState2=WISP অ্যাক্সেস পয়েন্টের সাথে সংযোগ নেই
-+InetState3=মোবাইল টাওয়ারের সাথে সংযোগ নেই
-+InetState4=নেটওয়ার্ক ইন্টারফেস প্রস্তুত নয়
-+InetState5=IP ঠিকানা নেওয়া হচ্ছে...
-+InetState6=PPP সংযোগের অপেক্ষায়...
-+InetState7=PPP সংযোগ সক্রিয় নয়
-+InetState8=ডিফল্ট গেটওয়ে সেট করা নেই
-+InetState9=WAN সাবনেট LAN সাবনেটের সাথে মিলে যাচ্ছে!
-+InetStateWISP=অ্যাক্সেস পয়েন্টে ওয়্যারলেস সংযোগ:
-+JS_DHCP1=সাবনেট মাস্ক বদলেছে, তাই DHCP IP পুলও বদলাতে হবে। স্বয়ংক্রিয়ভাবে বদলে দেবে?
-+JS_DHCP3=নতুন DHCP IP পুল সাবনেট মাস্কের সাথে মিলছে না। স্বয়ংক্রিয়ভাবে ঠিক করে দেবে?
-+JS_LanWanAlert=[Drop] বাছলে ফিল্টার টেবিলে থাকা ছাড়া LAN থেকে WAN এর সব প্যাকেট বাদ যাবে। সাবধানে ব্যবহার করুন।
-+JS_PSK64Hex=পাসওয়ার্ড ৮ থেকে ৬৩ অক্ষরের অথবা ৬৪টি হেক্স সংখ্যার হতে হবে!
-+JS_Shareblanktest=এই ঘর খালি রাখা যাবে না!
-+JS_WanLanAlert=[Drop] বাছলে ফিল্টার টেবিলে থাকা ছাড়া WAN থেকে LAN এর সব প্যাকেট বাদ যাবে। সাবধানে ব্যবহার করুন।
-+JS_checkpass=দুটি পাসওয়ার্ড মিলছে না।
-+JS_duplicate=এটি আগে থেকেই তালিকায় আছে!
-+JS_fieldblank=ঘরগুলো খালি রাখা যাবে না!
-+JS_focus=ফোকাসের বাইরে!
-+JS_freememory=ফাইল সিস্টেমের ক্যাশ মুছবেন?
-+JS_itemlimit1=এই টেবিলে সর্বোচ্চ
-+JS_itemlimit2=টি আইটেম রাখা যায়!
-+JS_logout=আপনি কি লগআউট করতে চান?
-+JS_passzero=পাসওয়ার্ড ৮ থেকে ৬৩ অক্ষরের হতে হবে। খালি রাখলে সিস্টেম [00000000] পাসওয়ার্ড দেবে।
-+JS_shutdown=বন্ধ করার পর নিজে হাতে আবার চালু করতে হবে! বন্ধ করবেন?
-+JS_validchar=অগ্রহণযোগ্য অক্ষর!
-+JS_validip=সঠিক IP ঠিকানা নয়!
-+JS_validmac=১২টি হেক্স অক্ষরের সম্পূর্ণ MAC ঠিকানা দিন।
-+JS_validmask=সঠিক IP মাস্ক নয়!
-+JS_validport=সঠিক পোর্ট নম্বর নয়।
-+JS_validportrange=সঠিক পোর্ট রেঞ্জ নয়!
-+JS_validrange=এর মধ্যে একটি মান দিন:
-+JS_validrange_to=থেকে
-+JS_validstr1=এই লেখা যা দিয়ে শুরু হতে পারবে না:
-+JS_validstr2=এই লেখায় যা থাকতে পারবে না:
-+JS_validsubnet=WAN ও LAN এর IP ঠিকানা ও সাবনেট আলাদা হতে হবে!
-+JS_wpapass=পাসওয়ার্ড ৬৪ অক্ষরের কম হতে হবে!
-+LANHostConfig_DHCPAllservers_itemname=সব DNS সার্ভারে একসাথে জিজ্ঞাসা করবে?
-+LANHostConfig_DHCPFilterAAAA_itemname=IPv6 DNS রেকর্ড বন্ধ করবেন?
-+LANHostConfig_DHCPProxyDNSSEC_itemname=DNSSEC সাপোর্ট চালু করবেন?
-+LANHostConfig_DHCPServerConfigurable_itemname=DHCP সার্ভার চালু করবেন?
-+LANHostConfig_DHCPServerConfigurable_sectiondesc=আপনার লোকাল নেটওয়ার্কে সর্বোচ্চ ২৫৩টি IP ঠিকানা দেওয়া যায়। DHCP সার্ভার চালু থাকলে ডিভাইসগুলো নিজে থেকেই IP পাবে, অথবা অ্যাডমিন হাতে দিতে পারেন।
-+LANHostConfig_DHCPServerConfigurable_sectiondesc2=রাউটারের IP ঠিকানা:
-+LANHostConfig_DHCPStopDNSRebind_itemname=DNS Rebind সুরক্ষা চালু করবেন?
-+LANHostConfig_DHCPStrictorder_itemname=DNS নির্দিষ্ট ক্রমে ব্যবহার করবেন?
-+LANHostConfig_DomainName_itemname=ডোমেইন নাম:
-+LANHostConfig_ForceDNS_itemname=সব ডিভাইসের DNS অনুরোধ রাউটারে পাঠাবেন?
-+LANHostConfig_IPRouters_itemname=IP ঠিকানা:
-+LANHostConfig_LeaseTime_itemname=DHCP লিজের সময় (সেকেন্ড):
-+LANHostConfig_ManualARP_itemname=স্থায়ী ARP বাঁধন চালু করবেন?
-+LANHostConfig_ManualDHCPEnable_itemname=হাতে IP দেওয়া চালু করবেন?
-+LANHostConfig_ManualDHCPList_groupitemdesc=হাতে দেওয়া IP এর তালিকা
-+LANHostConfig_ManualIP_itemname=IP ঠিকানা
-+LANHostConfig_ManualMac_itemname=MAC ঠিকানা
-+LANHostConfig_ManualName_itemname=হোস্টের নাম
-+LANHostConfig_MaxAddress_itemname=IP পুলের শেষ ঠিকানা:
-+LANHostConfig_MinAddress_itemname=IP পুলের শুরুর ঠিকানা:
-+LANHostConfig_SubnetMask_itemname=সাবনেট মাস্ক:
-+LANHostConfig_WPAD=ওয়েব প্রক্সি স্বয়ংক্রিয় খোঁজ (WPAD)
-+LANHostConfig_display1_sectiondesc=রাউটারের LAN IP সেট করুন। LAN IP বদলালে DHCP সার্ভার নিজে থেকেই IP পুল বদলে নেবে।
-+LANHostConfig_lanipaddr_changed_hint=পরে সেটিংস পেজে ফিরতে না পারলে আপনার কম্পিউটারের IP সেটিংস দেখুন।
-+LANHostConfig_x_DDNS_alarm_13=ডোমেইন নামে অগ্রহণযোগ্য অক্ষর আছে।
-+LANHostConfig_x_DDNS_alarm_7=হোস্টের নাম সংখ্যা দিয়ে শুরু হতে পারবে না এবং [.] থাকতে পারবে না (যেমন [123abc] বা [aaa.bbb])
-+LANHostConfig_x_LDNSServer1_itemname=DNS সার্ভার
-+LANHostConfig_x_LDNSServer1_sectionname=DNS ও WINS সার্ভার সেটিংস
-+LANHostConfig_x_LDNSServer6_itemname=DNSv6 সার্ভার
-+LANHostConfig_x_LGateway_itemname=ডিফল্ট গেটওয়ে:
-+LANHostConfig_x_NTPServer1_itemname=NTP সার্ভার
-+LANHostConfig_x_NTPServer1_linkname=NTP খুঁজুন
-+LANHostConfig_x_NTP_SyncNow=এখনই সময় মেলান
-+LANHostConfig_x_ServerLogEnable_itemname=রিমোট লগ সার্ভার:
-+LANHostConfig_x_TimeZone_itemname=টাইম জোন:
-+LANHostConfig_x_WINSServer_itemname=WINS সার্ভার:
-+LAN_IP=LAN IP
-+LAN_STP_itemname=Spanning Tree Protocol (STP) চালু করবেন?
-+Layer3Forwarding_x_ConnectionType_itemname=WAN সংযোগের ধরন:
-+Layer3Forwarding_x_ConnectionType_sectiondesc=রাউটার কয়েক ধরনের WAN সংযোগ সাপোর্ট করে। WAN সংযোগের ধরন তালিকা থেকে বেছে নিন। ধরন অনুযায়ী নিচের ঘরগুলো বদলাবে। বাংলাদেশে বেশিরভাগ ISP তে PPPoE ব্যবহার হয়।
-+Layer3Forwarding_x_DHCPClient_itemname=WAN IP ঠিকানা স্বয়ংক্রিয়ভাবে নেবে?
-+Layer3Forwarding_x_STB_itemname=IPTV সেট-টপ বক্সের পোর্ট বাছুন:
-+MAC_Address=MAC ঠিকানা
-+MAN_PPPoE=PPPoE ও MAN অ্যাক্সেস:
-+MAN_VIPTV_desc=VLAN CPU (IPTV) MAN IP সেটিংস
-+Main_alert_proceeding_desc1=চলছে...
-+Main_alert_proceeding_desc3=সম্পন্ন!
-+Main_alert_proceeding_desc4=অনুগ্রহ করে অপেক্ষা করুন...
-+Main_content_Login_Item7=রাউটার রিবুট হতে প্রায় ৩০ সেকেন্ড লাগে। আপনি কি এখনই রিবুট করতে চান?
-+Minute=মিনিট
-+ModemPrio=ইন্টারনেট উৎসের অগ্রাধিকার:
-+ModemPrioItem0=ব্রডব্যান্ড WAN বা WISP, সবসময়
-+ModemPrioItem1=USB মডেম, সবসময়
-+ModemPrioItem2=USB মডেম, WAN সংযোগ না থাকলে
-+MoreConfig=আরও সেটিংস
-+Nodata=কোনো তথ্য নেই
-+Not_authpage_login_again=আবার লগইন করতে চাইলে আগে এই উইন্ডোটি বন্ধ করুন।
-+PASS_LANG=ওয়েব প্যানেলের ভাষা বাছুন:
-+PASS_new=নতুন পাসওয়ার্ড:
-+PASS_retype=নতুন পাসওয়ার্ড আবার লিখুন:
-+PPPConnection_IdleDisconnectTime_itemname=অলস থাকলে কত সেকেন্ড পর বিচ্ছিন্ন হবে:
-+PPPConnection_Password_itemname=পাসওয়ার্ড:
-+PPPConnection_UserName_itemname=ইউজারনেম:
-+PPPConnection_UserName_sectionname=PPP / VPN ক্লায়েন্ট সেটিংস (ISP এর দেওয়া তথ্য)
-+PPPConnection_x_AccessConcentrator_itemname=Access Concentrator এর নাম:
-+PPPConnection_x_AdditionalOptions_itemname=অতিরিক্ত pppd অপশন:
-+PPPConnection_x_HeartBeat_itemname=VPN সার্ভার (PPTP/L2TP):
-+PPPConnection_x_HostNameForISP_itemname=হোস্টের নাম:
-+PPPConnection_x_HostNameForISP_itemvci=Vendor Class Identifier:
-+PPPConnection_x_HostNameForISP_sectionname=ISP এর বিশেষ চাহিদা
-+PPPConnection_x_MacAddressForISP_itemname=MAC ঠিকানা:
-+PPPConnection_x_PPPoEMRU_itemname=MRU:
-+PPPConnection_x_PPPoEMTU_itemname=MTU:
-+PPPConnection_x_ServiceName_itemname=PPPoE সার্ভিসের নাম:
-+PPP_AdaptiveLCP=অভিযোজিত LCP Echo বিরতি:
-+PPP_L2TPD=L2TP ক্লায়েন্ট ডেমন:
-+PPP_LCP=স্বয়ংক্রিয়ভাবে LCP অনুরোধ পাঠাবে?
-+QKSet_detect_freshbtn=আবার খুঁজুন
-+Reboot_Schedule=নির্ধারিত সময়ে রিবুট চালু করবেন?
-+Reboot_Schedule_Date=রিবুটের দিন (কর্মদিবস):
-+Reboot_Schedule_Date2=রিবুটের দিন (ছুটির দিন):
-+Reboot_Schedule_Time=রিবুটের সময়:
-+Rssi=RSSI
-+RunInetState=ইন্টারনেট সংযোগের অবস্থা বদলালে এই স্ক্রিপ্ট চালাবে:
-+SAVE_restart_desc=সিস্টেম রিস্টার্ট হচ্ছে! অপেক্ষা করুন, কিছুক্ষণ পর হোম পেজে নিয়ে যাওয়া হবে।
-+SC_add=যোগ করুন
-+SC_add_mac=MAC দিয়ে ডিভাইস যোগ করুন:
-+SC_bad_mac=MAC ঠিকানা সঠিক নয়। এভাবে লিখুন: aa:bb:cc:dd:ee:ff
-+SC_bad_plan=আপনার ইন্টারনেট প্যাকেজের স্পিড Mbps এ দিন (০ এর বেশি)।
-+SC_bad_speed=স্পিড সঠিক নয়। Mbps এ সংখ্যা দিন, যেমন 5 বা 0.5
-+SC_desc=আপনার বাছাই করা ডিভাইসগুলোকে পূর্ণ স্পিড দিন, বাকিদের সীমা ঠিক করে দিন। VIP ডিভাইস পূর্ণ স্পিড ও অগ্রাধিকার পায়। কাস্টম ডিভাইস তার নিজের সীমা পায়। বাকি সব ডিভাইস নিচের নিয়ম মানে। ডিভাইস চেনা হয় MAC ঠিকানা দিয়ে। পরিবর্তন ১৫ সেকেন্ডের মধ্যে কার্যকর হয়।
-+SC_devices=ডিভাইসসমূহ
-+SC_down=ডাউনলোড
-+SC_enable=স্পিড কন্ট্রোল চালু করবেন?
-+SC_hint_each=বাকি প্রতিটি ডিভাইস সর্বোচ্চ এই স্পিড পাবে।
-+SC_hint_pool=বাকি সব ডিভাইস মিলে সর্বোচ্চ এই স্পিড পাবে।
-+SC_mode=সীমার ধরন
-+SC_mode_each=প্রতিটি ডিভাইসের আলাদা সীমা
-+SC_mode_pool=সব ডিভাইস মিলে একটি সীমা
-+SC_name=নাম
-+SC_no_devices=এখনো কোনো ডিভাইস পাওয়া যায়নি। এক মিনিট অপেক্ষা করে রিফ্রেশ চাপুন।
-+SC_note_unit=স্পিড Mbps এ, দশমিক দেওয়া যাবে (0.5 = 500 kbps)। 0 = কোনো সীমা নেই।
-+SC_offline=অফলাইন
-+SC_others=বাকি সব ডিভাইস
-+SC_plan=আপনার ইন্টারনেট প্যাকেজ
-+SC_plan_desc=আপনার ISP প্যাকেজের আসল স্পিড দিন। বেশি দিলে VIP অগ্রাধিকার দুর্বল হয়, কম দিলে সবার স্পিড কমে যায়।
-+SC_refresh=রিফ্রেশ
-+SC_rule=নিয়ম
-+SC_rule_custom=কাস্টম সীমা
-+SC_rule_others=অন্যান্য
-+SC_rule_vip=VIP (পূর্ণ স্পিড)
-+SC_up=আপলোড
-+SI_FreeMem=খালি মেমরি:
-+SI_LoadAvg=গড় লোড:
-+SI_LoadCPU=CPU লোড:
-+SI_Uptime=চালু আছে:
-+STB_Isolation=IPTV সেট-টপ বক্স পোর্ট আলাদা রাখা:
-+STB_IsolationItem1=রাউটার CPU পোর্ট থেকে আলাদা
-+STB_IsolationItem2=WAN ব্রিজ পোর্ট থেকে আলাদা
-+Setting_factorydefault_hint1=বর্তমান সব সেটিংস মুছে রাউটার কারখানার ডিফল্ট অবস্থায় ফিরে যাবে।\n
-+Setting_factorydefault_hint2=আপনি কি নিশ্চিতভাবে চালিয়ে যেতে চান?
-+Setting_factorydefault_iphint=রাউটারের ডিফল্ট LAN IP হলো 192.168.0.1।\nপরে সেটিংস পেজে ফিরতে না পারলে আপনার কম্পিউটারের IP নতুন করে নিন।
-+Setting_factorydefault_itemname=ফ্যাক্টরি রিসেট:
-+Setting_save_itemname=সেটিংস ফাইলে সেভ করুন:
-+Setting_save_upload_desc=এখান থেকে রাউটারের বর্তমান সেটিংস ফাইলে সেভ করতে পারেন, অথবা ফাইল থেকে সেটিংস ফিরিয়ে আনতে পারেন।
-+Setting_upload_hint=ফাইলের নাম বা পাথ সঠিক নয়!
-+Setting_upload_itemname=ফাইল থেকে সেটিংস ফিরিয়ে আনুন:
-+ShareNode_DeviceName_itemname=ডিভাইসের নাম:
-+Storage_upload_itemname=ব্যাকআপ ফাইল থেকে স্টোরেজ ফিরিয়ে আনুন:
-+SwitchState=ইথারনেট সংযোগের অবস্থা:
-+TMP_btn=/tmp বাড়ান
-+Totaldisk=মোট
-+Type=ধরন
-+UntagVLAN=Untag
-+VPNS_Auth=অথেনটিকেশন অ্যালগরিদম:
-+VPNS_Ciph=এনক্রিপশন অ্যালগরিদম:
-+WAN_BRate=বর্তমান ডেটা স্পিড:
-+WAN_Bridge=পোর্ট আলাদা রাখা ও VLAN ফিল্টার
-+WAN_Bytes=এই সেশনের ট্রাফিক:
-+WAN_FilterVLAN=VLAN ট্যাগ করা ট্রাফিক ফিল্টার করবে?
-+WAN_Lease=DHCP লিজ শেষ হবে:
-+WAN_MAN_DHCP=MAN IP স্বয়ংক্রিয়ভাবে নেবে?
-+WAN_MAN_desc=MAN IP সেটিংস
-+WAN_MTU=MTU:
-+WAN_Poller=রিমোট গেটওয়ে ARP Ping দিয়ে পরীক্ষা করবে?
-+WAN_SFE=সফটওয়্যার অফলোড রাউটিং IPv4/IPv6:
-+WAN_Source=WAN ক্যাবল এই পোর্টে লাগানো:
-+WAN_TTL_Fix=রাউটিংয়ের পর TTL কমাবে না:
-+WAN_TTL_Item0=না, সবসময় কমাবে
-+WAN_TTL_Item1=সব প্যাকেটের জন্য
-+WAN_TTL_Item2=মাল্টিকাস্ট IPTV প্যাকেটের জন্য
-+WAN_TTL_Value=TTL মান
-+WAN_TTL_Value_Item0=ডিফল্ট
-+WAN_TTL_Value_Item1=64 (Unix)
-+WAN_TTL_Value_Item2=128 (Windows)
-+WAN_Uptime=সেশন চালু আছে:
-+WF_Fri=শুক্র
-+WF_Mon=সোম
-+WF_Thu=বৃহঃ
-+WF_Tue=মঙ্গল
-+WF_Wed=বুধ
-+WIFIGuestMCS=নির্দিষ্ট TX স্পিড মোড:
-+WIFIRegionCode=দেশ/অঞ্চল বাছুন:
-+WLANConfig11b_AssocReqRssiThres_itemname=এর চেয়ে দুর্বল সিগন্যালে সংযোগ দেবে না:
-+WLANConfig11b_AuthenticationMethod_itemname=নিরাপত্তার ধরন:
-+WLANConfig11b_BGProt11g_itemname=b/g সুরক্ষা:
-+WLANConfig11b_ChannelBW_itemname=চ্যানেলের প্রস্থ:
-+WLANConfig11b_Channel_itemname=চ্যানেল:
-+WLANConfig11b_EChannel_itemname=এক্সটেনশন চ্যানেল:
-+WLANConfig11b_KickStaRssiLow_itemname=এর চেয়ে দুর্বল হলে বিচ্ছিন্ন করবে:
-+WLANConfig11b_SSID_itemname=ওয়াই-ফাই এর নাম (SSID):
-+WLANConfig11b_TxPower_itemname=সিগন্যালের শক্তি (%):
-+WLANConfig11b_WEPDefaultKey_itemname=কী নম্বর:
-+WLANConfig11b_WEPKey1_itemname=WEP কী ১:
-+WLANConfig11b_WEPKey2_itemname=WEP কী ২:
-+WLANConfig11b_WEPKey3_itemname=WEP কী ৩:
-+WLANConfig11b_WEPKey4_itemname=WEP কী ৪:
-+WLANConfig11b_WEPKey_itemname=WEP কী
-+WLANConfig11b_WEPKey_itemtype1=৫টি ASCII অক্ষর বা ১০টি হেক্স সংখ্যা
-+WLANConfig11b_WEPKey_itemtype2=১৩টি ASCII অক্ষর বা ২৬টি হেক্স সংখ্যা
-+WLANConfig11b_WEPType_itemname=WEP এনক্রিপশন:
-+WLANConfig11b_WPAType_itemname=WPA এনক্রিপশন:
-+WLANConfig11b_x_BlockBCSSID_itemname=ওয়াই-ফাই এর নাম লুকাবে:
-+WLANConfig11b_x_Mode11g_itemname=ওয়্যারলেস মোড:
-+WLANConfig11b_x_PSKKey_itemname=ওয়াই-ফাই পাসওয়ার্ড (WPA কী):
-+WLANConfig11b_x_Phrase_itemname=পাসফ্রেজ:
-+WLANConfig11b_x_RadioEnableDate_itemname=ওয়াই-ফাই চালু থাকার দিন (কর্মদিবস):
-+WLANConfig11b_x_RadioEnableDate_itemname2=ওয়াই-ফাই চালু থাকার দিন (ছুটির দিন):
-+WLANConfig11b_x_RadioEnableTime_itemname=ওয়াই-ফাই চালু থাকার সময় (কর্মদিবস):
-+WLANConfig11b_x_RadioEnableTime_itemname2=ওয়াই-ফাই চালু থাকার সময় (ছুটির দিন):
-+WLANConfig11b_x_RadioEnable_itemname=ওয়াই-ফাই চালু করবেন?
-+WLANConfig11b_x_Rekey_itemname=নেটওয়ার্ক কী বদলানোর বিরতি:
-+WLANConfig11n_automode_limition_hint=[Mixed] মোডে WEP বা TKIP এনক্রিপশনে সর্বোচ্চ স্পিড 54 Mbps।
-+WLANConfig11n_nmode_limition_hint=[n Only] মোডে সঠিক সংযোগের জন্য WEP বা TKIP এনক্রিপশন বদলে AES করা হবে।
-+Wireless_name=ওয়্যারলেস নাম
-+block_Comfirm1=আপনি কি এই ডিভাইসটি ব্লক করতে চান
-+block_Comfirm2=ব্লক করা ডিভাইস রাউটারের মাধ্যমে ইন্টারনেটে যেতে পারবে না।
-+btn_Disable=বন্ধ করুন
-+checkbox_No=না
-+checkbox_Yes=হ্যাঁ
-+footer_copyright_desc=ZVCOPYRVZ
-+logoutmessage=আপনি সফলভাবে লগআউট করেছেন।
-+macfilter_alert_str1=[Accept] এ বদলানো হয়েছে। ডিভাইস ব্লক করতে চাইলে [Reject] এ বদলান।
-+menu1=নেটওয়ার্ক ম্যাপ
-+menu2=VPN সার্ভার
-+menu3=AiDisk
-+menu4=নেটওয়ার্ক ট্রাফিক
-+menu5=উন্নত সেটিংস
-+menu5_1=ওয়্যারলেস
-+menu5_10=কাস্টমাইজেশন
-+menu5_10_1=বোতাম/লাইট
-+menu5_10_2=স্ক্রিপ্ট
-+menu5_10_3=ইন্টারনেট ডিটেক্টর
-+menu5_10_4=স্পিড কন্ট্রোল
-+menu5_11=ওয়াই-ফাই 2.4GHz
-+menu5_12=ওয়াই-ফাই 5GHz
-+menu5_1_1=সাধারণ
-+menu5_1_2=গেস্ট ওয়াই-ফাই
-+menu5_1_3=ব্রিজ
-+menu5_1_4=ওয়াই-ফাই MAC ফিল্টার
-+menu5_1_5=RADIUS সেটিংস
-+menu5_1_6=পেশাদার সেটিংস
-+menu5_2=LAN
-+menu5_2_1=LAN IP
-+menu5_2_2=DHCP সার্ভার
-+menu5_2_3=রাউট
-+menu5_2_4=IPTV
-+menu5_2_5=ইথারনেট সুইচ
-+menu5_2_6=Wake-on-LAN
-+menu5_3=WAN
-+menu5_3_1=ইন্টারনেট সংযোগ
-+menu5_3_3=IPv6 প্রোটোকল
-+menu5_3_4=পোর্ট ফরওয়ার্ডিং
-+menu5_3_5=DMZ
-+menu5_3_6=DDNS
-+menu5_4=USB অ্যাপ্লিকেশন
-+menu5_4_1=নেটওয়ার্ক শেয়ার
-+menu5_4_2=FTP শেয়ার
-+menu5_4_3=সাধারণ সেটিংস
-+menu5_4_4=মডেম
-+menu5_4_5=প্রিন্টার
-+menu5_5=ফায়ারওয়াল
-+menu5_5_1=সাধারণ
-+menu5_5_2=URL ফিল্টার
-+menu5_5_3=MAC ফিল্টার
-+menu5_5_4=নেটওয়ার্ক সার্ভিস ফিল্টার
-+menu5_5_5=Netfilter
-+menu5_6=পরিচালনা
-+menu5_6_1=অপারেশন মোড
-+menu5_6_2=সিস্টেম
-+menu5_6_3=ফার্মওয়্যার আপগ্রেড
-+menu5_6_4=সেটিংস
-+menu5_6_5=সার্ভিস
-+menu5_6_6=কনসোল
-+menu5_7=সিস্টেম লগ
-+menu5_7_2=সাধারণ লগ
-+menu5_7_3=DHCP লিজ
-+menu5_7_5=পোর্ট ফরওয়ার্ডিং
-+menu5_7_6=রাউটিং টেবিল
-+menu5_7_8=সংযোগসমূহ
-+menu5_8=সিস্টেমের তথ্য
-+menu5_9=ওয়্যারলেস ও তারযুক্ত তথ্য
-+menu6=VPN ক্লায়েন্ট
-+not_support_script=আপনার ব্রাউজার JavaScript সাপোর্ট করে না। রাউটার ব্যবহারের জন্য JavaScript চালু করুন বা অন্য ব্রাউজার ব্যবহার করুন।
-+page_not_support_mode_hint=এই সুবিধাটি বন্ধ আছে।
-+statusTitle_Card=SD কার্ডের অবস্থা
-+statusTitle_Client=ডিভাইসের অবস্থা
-+statusTitle_Hub=USB হাব পোর্টের অবস্থা
-+statusTitle_Internet=ইন্টারনেটের অবস্থা
-+statusTitle_Intranet=লোকাল নেটওয়ার্কের অবস্থা
-+statusTitle_Modem=USB মডেমের অবস্থা
-+statusTitle_Printer=USB প্রিন্টারের অবস্থা
-+statusTitle_SATA=SATA পোর্টের অবস্থা
-+statusTitle_System=ওয়্যারলেস নেটওয়ার্কের অবস্থা
-+statusTitle_USB_Disk=USB স্টোরেজের অবস্থা
-+t1Logout=লগআউট
-+t2Advanced=উন্নত সেটিংস
-+t2Misc=অন্যান্য
-+unBlock=আনব্লক
-+unRssi=UNRSSI
-+unblock_Comfirm1=আপনি কি এই ডিভাইসটি সরাতে চান
-+unblock_Comfirm2=ব্লক করা ডিভাইসের তালিকা থেকে?
 diff --git a/trunk/user/www/dict/EN.footer b/trunk/user/www/dict/EN.footer
 index d334383bb..25731bb61 100755
 --- a/trunk/user/www/dict/EN.footer
@@ -1192,7 +715,7 @@ index 000000000..63fcd568a
 +
 +<% login_state_hook(); %>
 +
-+/* Speed Control page - Iqbal Mahmud build */
++/* Speed Control page - Libin build */
 +
 +var sc_vip_v = '<% nvram_get_x("", "sc_vip"); %>';
 +var sc_custom_v = '<% nvram_get_x("", "sc_custom"); %>';
@@ -1526,11 +1049,11 @@ index 9647ab926..bfa03dd27 100755
  
  #logo {
 -    background-image: url("/bootstrap/img/padavan_logo.png");
-+    background-image: url("/bootstrap/img/iqbal_logo.png");
++    background-image: url("/bootstrap/img/libin_logo.png");
      width: 150px;
      height: 71px;
      margin-top: 40px;
-diff --git a/trunk/user/www/n56u_ribbon_fixed/bootstrap/img/iqbal_logo.png b/trunk/user/www/n56u_ribbon_fixed/bootstrap/img/iqbal_logo.png
+diff --git a/trunk/user/www/n56u_ribbon_fixed/bootstrap/img/libin_logo.png b/trunk/user/www/n56u_ribbon_fixed/bootstrap/img/libin_logo.png
 new file mode 100755
 index 0000000000000000000000000000000000000000..823fe7b32399e5d2046e62d74e0e81f57ebdc778
 GIT binary patch
@@ -1636,13 +1159,7 @@ diff --git a/trunk/user/www/n56u_ribbon_fixed/state.js b/trunk/user/www/n56u_rib
 index 795a2ee8e..8523f300c 100755
 --- a/trunk/user/www/n56u_ribbon_fixed/state.js
 +++ b/trunk/user/www/n56u_ribbon_fixed/state.js
-@@ -1,4 +1,5 @@
- var sw_mode = '<% nvram_get_x("", "sw_mode"); %>';
-+var cur_lang = '<% nvram_get_x("", "preferred_lang"); %>' || 'EN';
- var wan_route_x = '<% nvram_get_x("", "wan_route_x"); %>';
- var wan_proto = '<% nvram_get_x("", "wan_proto"); %>';
- var lan_proto = '<% nvram_get_x("", "lan_proto_x"); %>';
-@@ -229,6 +230,7 @@ var enabledBtnCommit = '<% nvram_match_x("","nvram_manual", "1", "btn-info"); %>
+@@ -229,6 +229,7 @@ var enabledBtnCommit = '<% nvram_match_x("","nvram_manual", "1", "btn-info"); %>
  
  // L3 = The third Level of Menu
  function show_banner(L3){
@@ -1650,7 +1167,7 @@ index 795a2ee8e..8523f300c 100755
  	var bc = '';
  	var style_2g = 'width:55px;';
  	var style_5g = 'width:55px;';
-@@ -390,7 +392,7 @@ tabtitle[3] = new Array("", "<#menu5_3_1#>", "<#menu5_3_3#>", "<#menu5_3_4#>", "
+@@ -390,7 +391,7 @@ tabtitle[3] = new Array("", "<#menu5_3_1#>", "<#menu5_3_3#>", "<#menu5_3_4#>", "
  tabtitle[4] = new Array("", "<#menu5_5_1#>", "<#menu5_5_5#>", "<#menu5_5_2#>", "<#menu5_5_3#>", "<#menu5_5_4#>");
  tabtitle[5] = new Array("", "<#menu5_4_3#>", "<#menu5_4_1#>", "<#menu5_4_2#>", "<#menu5_4_4#>", "<#menu5_4_5#>");
  tabtitle[6] = new Array("", "<#menu5_6_2#>", "<#menu5_6_5#>", "<#menu5_6_1#>", "<#menu5_6_3#>", "<#menu5_6_4#>", "<#menu5_6_6#>");
@@ -1659,7 +1176,7 @@ index 795a2ee8e..8523f300c 100755
  tabtitle[8] = new Array("", "<#menu5_11#>", "<#menu5_12#>", "WAN", "", "", "", "", "", "", "");
  tabtitle[9] = new Array("", "<#menu5_7_2#>", "<#menu5_7_3#>", "<#menu5_7_5#>", "<#menu5_7_6#>", "<#menu5_7_8#>");
  
-@@ -403,7 +405,7 @@ tablink[3] = new Array("", "Advanced_WAN_Content.asp", "Advanced_IPv6_Content.as
+@@ -403,7 +404,7 @@ tablink[3] = new Array("", "Advanced_WAN_Content.asp", "Advanced_IPv6_Content.as
  tablink[4] = new Array("", "Advanced_BasicFirewall_Content.asp", "Advanced_Netfilter_Content.asp", "Advanced_URLFilter_Content.asp", "Advanced_MACFilter_Content.asp", "Advanced_Firewall_Content.asp");
  tablink[5] = new Array("", "Advanced_AiDisk_others.asp", "Advanced_AiDisk_samba.asp", "Advanced_AiDisk_ftp.asp", "Advanced_Modem_others.asp", "Advanced_Printer_others.asp");
  tablink[6] = new Array("", "Advanced_System_Content.asp", "Advanced_Services_Content.asp", "Advanced_OperationMode_Content.asp", "Advanced_FirmwareUpgrade_Content.asp", "Advanced_SettingBackup_Content.asp", "Advanced_Console_Content.asp");
@@ -1668,29 +1185,26 @@ index 795a2ee8e..8523f300c 100755
  tablink[8] = new Array("", "Main_WStatus2g_Content.asp", "Main_WStatus_Content.asp", "", "", "", "", "", "", "", "");
  tablink[9] = new Array("", "Main_LogStatus_Content.asp", "Main_DHCPStatus_Content.asp", "Main_IPTStatus_Content.asp", "Main_RouteStatus_Content.asp", "Main_CTStatus_Content.asp");
  
-@@ -567,12 +569,17 @@ function show_footer(){
+@@ -567,12 +568,14 @@ function show_footer(){
  	footer_code = '<div align="center" class="bottom-image"></div>\n';
  	footer_code +='<div align="center" class="copyright"><#footer_copyright_desc#></div>\n';
  	footer_code +='<div align="center">\n';
-+	footer_code +='  <span><b>Smart Router Firmware by <a href="https://iqbalmahmud.com" target="_blank">Iqbal Mahmud</a></b> &middot; Smart WAN Watchdog &amp; Speed Control</span></br>\n';
++	footer_code +='  <span><b>Smart Router Firmware by Libin</b> &middot; Smart WAN Watchdog &amp; Speed Control</span></br>\n';
  	footer_code +='  <span>Developed by © Andy Padavan &amp; Linaro &amp; Alxdm &amp; Mahtab &amp; <a href="https://gitlab.com/hadzhioglu/padavan-ng">Hadzhioglu</a></span></br>\n';
  	footer_code +='  <span>Firmware distribution is prohibited</span></br>\n';
  	footer_code +='  <span>Non-Commercial Use Only</span></br>\n';
  	footer_code +='</div>\n';
  
-+	footer_code += lang_switch_code();
-+
  	$("footer").innerHTML = footer_code;
-+	show_lang_pill();
 +	apply_branding();
  
  	flash_button();
  }
-@@ -647,6 +654,89 @@ function show_loading_obj(){
+@@ -647,6 +650,57 @@ function show_loading_obj(){
  	id_check_status = setTimeout('hideLoading();', 3000);
  }
  
-+// Branding + mobile layout (Iqbal Mahmud build). Injected from here because
++// Branding + mobile layout (Libin build). Injected from here because
 +// state.js is never cached by the router, while .png/.css are cached for 30 days.
 +var im_mobile_css = ''
 + + '@media (max-width: 979px) {'
@@ -1706,7 +1220,6 @@ index 795a2ee8e..8523f300c 100755
 + + ' .im-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }'
 + + ' .nav-tabs > li { float: none; display: inline-block; }'
 + + ' .box_head { font-size: 15px; }'
-+ + ' #lang_pill { font-size: 15px !important; padding: 7px 14px !important; }'
 + + '}';
 +
 +function apply_branding(){
@@ -1725,7 +1238,7 @@ index 795a2ee8e..8523f300c 100755
 +	}
 +	var lg = d.getElementById('logo');
 +	if (lg)
-+		lg.style.backgroundImage = 'url(/bootstrap/img/iqbal_logo.png)';
++		lg.style.backgroundImage = 'url(/bootstrap/img/libin_logo.png)';
 +	// wide tables (3+ columns) scroll sideways on small screens instead of overflowing
 +	var tbls = d.querySelectorAll('table.table');
 +	for (i = 0; i < tbls.length; i++) {
@@ -1740,37 +1253,6 @@ index 795a2ee8e..8523f300c 100755
 +		t.parentNode.insertBefore(w, t);
 +		w.appendChild(t);
 +	}
-+}
-+
-+// English / Bangla switch (Iqbal Mahmud build)
-+function lang_switch_code(){
-+	var en = (cur_lang == 'BN') ? '<a href="javascript:set_lang(\'EN\')">English</a>' : '<b>English</b>';
-+	var bn = (cur_lang == 'BN') ? '<b>\u09AC\u09BE\u0982\u09B2\u09BE</b>' : '<a href="javascript:set_lang(\'BN\')">\u09AC\u09BE\u0982\u09B2\u09BE</a>';
-+	return '<div align="center" style="margin: 8px 0 14px 0; font-size: 14px;">' + en + ' &nbsp;|&nbsp; ' + bn + '</div>\n';
-+}
-+
-+function show_lang_pill(){
-+	if (document.getElementById('lang_pill'))
-+		return;
-+	var d = document.createElement('div');
-+	d.id = 'lang_pill';
-+	d.style.cssText = 'position:fixed;bottom:14px;right:14px;z-index:9999;background:#2b6c9e;color:#fff;border-radius:14px;padding:4px 12px;font-size:13px;box-shadow:0 1px 4px rgba(0,0,0,.3);';
-+	var other = (cur_lang == 'BN') ? 'EN' : 'BN';
-+	var label = (cur_lang == 'BN') ? 'English' : '\u09AC\u09BE\u0982\u09B2\u09BE';
-+	d.innerHTML = '<a href="javascript:set_lang(\'' + other + '\')" style="color:#fff;text-decoration:none;">&#127760; ' + label + '</a>';
-+	document.body.appendChild(d);
-+}
-+
-+function set_lang(new_lang){
-+	var f = document.titleForm;
-+	if (new_lang == cur_lang || !f)
-+		return;
-+	showLoading();
-+	f.action = "/start_apply.htm";
-+	f.current_page.value = (location.pathname == "/") ? "/index.asp" : location.pathname;
-+	f.preferred_lang.value = new_lang;
-+	f.flag.value = "set_language";
-+	f.submit();
 +}
 +
  function submit_language(){
