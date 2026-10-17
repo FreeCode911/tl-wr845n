@@ -1,4 +1,4 @@
-name: Build Iqbal Mahmud Smart Firmware (TL-WR845N v4)
+name: Build Libin Smart Firmware (TL-WR845N v4)
 
 on:
   workflow_dispatch:
@@ -12,6 +12,7 @@ env:
   TOOLCHAIN_URL: https://gitlab.com/api/v4/projects/hadzhioglu%2Fpadavan-ng/packages/generic/toolchain/latest/toolchain.tzst
   PRODUCT_ID: TL_WR845N-V4
   TEMPLATE: tplink/tl_wr845n-v4.config
+  PATCH_FILE: patches/0001-libin-smart-firmware.patch
   MAX_FW_SIZE: 3932160   # 0x3C0000, the Firmware partition on this 4 MB board
 
 jobs:
@@ -31,13 +32,12 @@ jobs:
       - name: Get toolchain
         run: wget -qO- "$TOOLCHAIN_URL" | tar -C src --zstd -xf -
 
-      - name: Apply Iqbal Mahmud patches
+      - name: Apply Libin patch
         run: |
+          [ -f "$PATCH_FILE" ] || { echo "::error::$PATCH_FILE not found in the repo"; exit 1; }
           cd src
-          for p in ../patches/*.patch; do
-            echo "Applying $p"
-            git apply --whitespace=nowarn "$p"
-          done
+          echo "Applying ../$PATCH_FILE"
+          git apply --whitespace=nowarn "../$PATCH_FILE"
           chmod +x trunk/user/scripts/wan_watchdog.sh trunk/user/scripts/speedctl.sh
 
       - name: Configure (English only, Speed Control on, IPSet off)
@@ -76,7 +76,7 @@ jobs:
             if [ "$size" -le "$MAX_FW_SIZE" ]; then
               echo "::notice::Firmware fits: $size of $MAX_FW_SIZE bytes ($(( (MAX_FW_SIZE - size) / 1024 )) KB free). Removed: ${dropped:-nothing}"
               echo "### Firmware: $size / $MAX_FW_SIZE bytes. Removed: ${dropped:-nothing}" >> "$GITHUB_STEP_SUMMARY"
-              cp "$FW" "$GITHUB_WORKSPACE/IqbalMahmud_WR845Nv4_v2.bin"
+              cp "$FW" "$GITHUB_WORKSPACE/Libin_WR845Nv4_v2.bin"
               echo "Removed to fit 4 MB flash: ${dropped:-nothing}" > "$GITHUB_WORKSPACE/BUILD_INFO.txt"
               exit 0
             fi
@@ -85,28 +85,28 @@ jobs:
           echo "::error::Still too big after all trims: $size of $MAX_FW_SIZE bytes"
           exit 1
 
-      - name: Check Speed Control and Bengali are inside the image
+      - name: Check Speed Control is inside the image
         run: |
           R=src/trunk/romfs
-          for f in usr/bin/speedctl usr/bin/wan_watchdog.sh bin/tc www/BN.dict www/Advanced_SpeedControl_Content.asp; do
+          for f in usr/bin/speedctl usr/bin/wan_watchdog.sh bin/tc www/Advanced_SpeedControl_Content.asp; do
             [ -e "$R/$f" ] && echo "OK  /$f" || echo "::warning::MISSING /$f in image"
           done
 
       - name: Check size
         run: |
-          size=$(stat -c %s IqbalMahmud_WR845Nv4_v2.bin)
+          size=$(stat -c %s Libin_WR845Nv4_v2.bin)
           echo "Firmware size: $size bytes (max $MAX_FW_SIZE)"
           if [ "$size" -gt "$MAX_FW_SIZE" ]; then
             echo "::error::Firmware is too big for the 4 MB flash"; exit 1
           fi
-          sha256sum IqbalMahmud_WR845Nv4_v2.bin > SHA256SUMS.txt
+          sha256sum Libin_WR845Nv4_v2.bin > SHA256SUMS.txt
 
       - name: Upload firmware
         uses: actions/upload-artifact@v4
         with:
-          name: IqbalMahmud-WR845Nv4-v2
+          name: Libin-WR845Nv4-v2
           retention-days: 30
           path: |
-            IqbalMahmud_WR845Nv4_v2.bin
+            Libin_WR845Nv4_v2.bin
             SHA256SUMS.txt
             BUILD_INFO.txt
